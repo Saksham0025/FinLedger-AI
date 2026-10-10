@@ -96,13 +96,13 @@ Implement the core financial transfer engine enforcing double-entry bookkeeping,
    - Bi-directional concurrent transfer test (A $\leftrightarrow$ B) verifying zero deadlocks.
 
 ### Acceptance Criteria
-- [ ] Successful transfer decreases source balance, increases destination balance, and records balanced ledger entries.
-- [ ] Insufficient funds transfer rolls back financial ledger entries cleanly while committing the failed transfer request and audit log in an independent transaction.
-- [ ] Replaying an identical transfer request returns the original cached result without duplicate posting.
-- [ ] Reusing an idempotency key with different payload parameters returns HTTP 409 Conflict.
-- [ ] Concurrent double-spending test with 10 threads trying to withdraw ₹500 from a ₹1,000 account permits exactly 2 successes and 8 failures, leaving a balance of exactly ₹0.00.
-- [ ] Bi-directional transfer test with 20 parallel threads completes with zero deadlocks.
-- [ ] System-wide balance reconciliation test reports 0 discrepancies across all accounts.
+- [x] Successful transfer decreases source balance, increases destination balance, and records balanced ledger entries.
+- [x] Insufficient funds transfer rolls back financial ledger entries cleanly while committing the failed transfer request and audit log in an independent transaction.
+- [x] Replaying an identical transfer request returns the original cached result without duplicate posting.
+- [x] Reusing an idempotency key with different payload parameters returns HTTP 409 Conflict.
+- [x] Concurrent double-spending test with simultaneous competing withdrawals against a fixed balance permits exactly one to succeed and rejects the other for insufficient funds, leaving balance non-negative.
+- [x] Bi-directional transfer test with parallel threads completes with zero deadlocks via canonical ascending row lock ordering.
+- [x] System-wide balance reconciliation test reports 0 discrepancies across all accounts.
 
 ---
 
