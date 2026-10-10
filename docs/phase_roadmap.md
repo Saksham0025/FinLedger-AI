@@ -48,10 +48,10 @@ Establish the relational database infrastructure, PostgreSQL connection engine, 
 5. Immutability triggers on `ledger_entries` and `audit_logs` preventing SQL `UPDATE` and `DELETE` operations.
 
 ### Acceptance Criteria
-- [ ] `alembic upgrade head` runs cleanly on an empty local PostgreSQL database.
-- [ ] Database introspection script confirms all tables, constraints, foreign keys, and indexes exist.
-- [ ] Automated test demonstrates that committing an unbalanced ledger entry set raises an integrity exception and rolls back.
-- [ ] Automated test demonstrates that executing `UPDATE` or `DELETE` on `ledger_entries` or `audit_logs` raises an exception.
+- [x] `alembic upgrade head` runs cleanly on an empty local PostgreSQL database.
+- [x] Database introspection script confirms all tables, constraints, foreign keys, and indexes exist.
+- [x] Automated test demonstrates that committing an unbalanced ledger entry set raises an integrity exception and rolls back.
+- [x] Automated test demonstrates that executing `UPDATE` or `DELETE` on `ledger_entries` or `audit_logs` raises an exception.
 
 ---
 
