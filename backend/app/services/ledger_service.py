@@ -119,17 +119,26 @@ class LedgerService:
         return txn
 
     @staticmethod
-    def reconcile_all_accounts(db: Session) -> ReconciliationReport:
-        """Audit all accounts by comparing cached balances with ledger-derived sums.
+    def reconcile_accounts(
+        db: Session,
+        account_ids: list[uuid.UUID] | None = None,
+    ) -> ReconciliationReport:
+        """Audit accounts by comparing cached balances with ledger-derived sums.
 
         Never alters database rows or rewrites balances. Purely detects,
-        measures, and reports discrepancies across the system.
+        measures, and reports discrepancies across audited accounts.
+
+        Args:
+            db: Database session.
+            account_ids: Optional list of account UUIDs to audit. If None, audits all accounts in the database.
 
         Returns:
-            ReconciliationReport: System-wide audit report with discrepancy details.
+            ReconciliationReport: Audit report with discrepancy details.
         """
-        # Fetch all accounts ordered by account number
+        # Fetch accounts ordered by account number
         accounts_stmt = select(Account).order_by(Account.account_number.asc())
+        if account_ids is not None:
+            accounts_stmt = accounts_stmt.where(Account.id.in_(account_ids))
         accounts = list(db.scalars(accounts_stmt).all())
 
         discrepancies: list[DiscrepancyItem] = []
@@ -160,7 +169,16 @@ class LedgerService:
         # In a closed double-entry system:
         # System clearing contra-balance + customer account balances == 0.00
         global_net_delta = total_clearing + total_customer_liabilities
-        is_balanced = len(discrepancies) == 0 and global_net_delta == Decimal("0.00")
+        if account_ids is None:
+            is_balanced = len(discrepancies) == 0 and global_net_delta == Decimal("0.00")
+        else:
+            # For a targeted set of accounts, balanced if 0 discrepancies exist
+            # and if clearing contra-account is included, net delta is 0
+            has_clearing = any(acc.account_type == "INTERNAL_CLEARING" for acc in accounts)
+            if has_clearing:
+                is_balanced = len(discrepancies) == 0 and global_net_delta == Decimal("0.00")
+            else:
+                is_balanced = len(discrepancies) == 0
 
         return ReconciliationReport(
             reconciled_at=datetime.now(timezone.utc),
@@ -172,3 +190,8 @@ class LedgerService:
             global_net_ledger_delta=global_net_delta,
             discrepancies=discrepancies,
         )
+
+    @staticmethod
+    def reconcile_all_accounts(db: Session) -> ReconciliationReport:
+        """Audit all accounts across the entire database."""
+        return LedgerService.reconcile_accounts(db, account_ids=None)
