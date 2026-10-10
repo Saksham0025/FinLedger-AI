@@ -154,3 +154,108 @@ def clearing_account(db_session):
         db_session.add(account)
         db_session.flush()
     return account
+
+
+@pytest.fixture
+def client(db_session):
+    """FastAPI TestClient fixture wired to the isolated db_session."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.core.database import get_db
+
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def auth_headers_factory():
+    """Factory fixture returning Bearer auth headers for a given user."""
+    from app.core.security import create_access_token
+
+    def _create_headers(user: User) -> dict[str, str]:
+        token = create_access_token(
+            subject=user.id,
+            role=user.role,
+            username=user.username,
+        )
+        return {"Authorization": f"Bearer {token}"}
+
+    return _create_headers
+
+
+@pytest.fixture
+def test_customer_user(db_session):
+    """Fixture providing a test customer user with linked customer profile."""
+    from app.core.security import get_password_hash
+
+    stmt = select(User).where(User.username == "test_customer_auth")
+    user = db_session.scalars(stmt).first()
+    if not user:
+        user = User(
+            username="test_customer_auth",
+            email="test_customer_auth@example.com",
+            password_hash=get_password_hash("Password123!"),
+            role="CUSTOMER",
+            is_active=True,
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        customer = Customer(
+            user_id=user.id,
+            full_name="Test Customer Auth",
+            phone="+91-9988776655",
+            pan_number="ABCDE9999Z",
+            kyc_status="VERIFIED",
+        )
+        db_session.add(customer)
+        db_session.flush()
+    return user
+
+
+@pytest.fixture
+def test_staff_user(db_session):
+    """Fixture providing a test staff user."""
+    from app.core.security import get_password_hash
+
+    stmt = select(User).where(User.username == "test_staff_auth")
+    user = db_session.scalars(stmt).first()
+    if not user:
+        user = User(
+            username="test_staff_auth",
+            email="test_staff_auth@finledger.internal",
+            password_hash=get_password_hash("Password123!"),
+            role="STAFF",
+            is_active=True,
+        )
+        db_session.add(user)
+        db_session.flush()
+    return user
+
+
+@pytest.fixture
+def test_admin_user(db_session):
+    """Fixture providing a test administrator user."""
+    from app.core.security import get_password_hash
+
+    stmt = select(User).where(User.username == "test_admin_auth")
+    user = db_session.scalars(stmt).first()
+    if not user:
+        user = User(
+            username="test_admin_auth",
+            email="test_admin_auth@finledger.internal",
+            password_hash=get_password_hash("Password123!"),
+            role="ADMIN",
+            is_active=True,
+        )
+        db_session.add(user)
+        db_session.flush()
+    return user

@@ -71,10 +71,10 @@ Implement secure credential handling, stateless JWT authentication, role-based a
    - Admin: `admin_system`
 
 ### Acceptance Criteria
-- [ ] Passwords stored in `users` are securely hashed; plaintext passwords never appear in database records or logs.
-- [ ] Valid credentials yield a signed JWT token; invalid credentials return HTTP 401.
-- [ ] Customer tokens accessing staff routes return HTTP 403 Forbidden.
-- [ ] Audit logs record login and access events with actor ID, action name, IP address, and sanitized metadata.
+- [x] Passwords stored in `users` are securely hashed; plaintext passwords never appear in database records or logs.
+- [x] Valid credentials yield a signed JWT token; invalid credentials return HTTP 401.
+- [x] Customer tokens accessing staff routes return HTTP 403 Forbidden.
+- [x] Audit logs record login and access events with actor ID, action name, IP address, and sanitized metadata.
 
 ---
 
