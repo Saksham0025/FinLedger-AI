@@ -123,10 +123,10 @@ Construct a reproducible synthetic banking transaction generator, implement a tr
 5. Prominent academic disclaimer in reports and UI stating synthetic evaluation limits.
 
 ### Acceptance Criteria
-- [ ] Generator generates reproducible datasets with configurable random seeds.
-- [ ] Evaluation script outputs `evaluation_report.json` and confusion matrix plot comparing Rule Baseline vs ML.
-- [ ] Transfers with simulated fraud patterns trigger advisory alerts in `fraud_predictions` with risk score and human-readable explanation.
-- [ ] AI model execution never modifies account balances or rolls back valid financial transfers autonomously.
+- [x] Generator generates reproducible datasets with configurable random seeds.
+- [x] Evaluation script outputs `evaluation_report.json` and confusion matrix plot comparing Rule Baseline vs ML.
+- [x] Transfers with simulated fraud patterns trigger advisory alerts in `fraud_predictions` with risk score and human-readable explanation.
+- [x] AI model execution never modifies account balances or rolls back valid financial transfers autonomously.
 
 ---
 

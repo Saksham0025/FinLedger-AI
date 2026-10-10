@@ -59,3 +59,7 @@ desktop.ini
 *.sqlite3
 *.db
 pgdata/
+
+# Machine Learning generated datasets & binary artifacts
+backend/ml/data/*.csv
+backend/ml/artifacts/*.joblib

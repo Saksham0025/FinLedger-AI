@@ -383,6 +383,14 @@ class TransferService:
                 independent_txn=True,
             )
 
+            # Step 9: Post-commit Advisory Fraud Scoring (strictly advisory, outside row locks)
+            # Scoring failures are safely contained and never affect the committed financial transfer.
+            try:
+                from ml.predict import fraud_detector
+                fraud_detector.score_transfer(transfer_req, db=db)
+            except Exception:
+                pass
+
             return transfer_req, False
 
         except IntegrityError as exc:
