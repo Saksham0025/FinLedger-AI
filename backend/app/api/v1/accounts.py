@@ -5,14 +5,52 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_current_user, require_customer
 from app.models.user import User
 from app.models.account import Account
-from app.schemas.account import AccountResponse, DepositRequest
+from app.schemas.account import AccountResponse, DepositRequest, AccountCreateRequest
 from app.schemas.ledger import LedgerEntryResponse
 from app.services.account_service import AccountService
 
 router = APIRouter(prefix="/accounts", tags=["Accounts & Balances"])
+
+
+@router.post(
+    "",
+    response_model=AccountResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Provision a new customer account (SAVINGS or CURRENT)",
+)
+def create_account(
+    data: AccountCreateRequest = AccountCreateRequest(),
+    current_user: User = Depends(require_customer),
+    db: Session = Depends(get_db),
+):
+    """Provision a new customer account with zero balance.
+
+    Zero initial balance ensures strict adherence to double-entry ledger invariants.
+    Subsequent deposits must be posted against the internal clearing account.
+    """
+    if not current_user.customer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer profile not found for user",
+        )
+
+    try:
+        new_account = AccountService.provision_customer_account(
+            db=db,
+            customer_id=current_user.customer.id,
+            account_type=data.account_type,
+        )
+        db.commit()
+        db.refresh(new_account)
+        return new_account
+    except ValueError as err:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(err),
+        )
 
 
 @router.get(

@@ -38,3 +38,13 @@ class DepositRequest(BaseModel):
         max_length=255,
         description="Human-readable ledger description",
     )
+
+
+class AccountCreateRequest(BaseModel):
+    """Payload for provisioning a customer account."""
+
+    account_type: str = Field(
+        default="SAVINGS",
+        pattern=r"^(SAVINGS|CURRENT)$",
+        description="Account type to provision (SAVINGS or CURRENT)",
+    )

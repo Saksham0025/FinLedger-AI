@@ -1,6 +1,7 @@
 """Comprehensive tests for authentication, password security, and JWT tokens in FinLedger-AI."""
 
 from datetime import timedelta
+from decimal import Decimal
 import pytest
 import jwt
 from app.core.config import settings
@@ -290,3 +291,47 @@ def test_logout_endpoint(client, test_customer_user, auth_headers_factory):
     response = client.post("/api/v1/auth/logout", headers=headers)
     assert response.status_code == 200
     assert response.json()["message"] == "Logged out successfully"
+
+
+def test_registration_provisions_primary_savings_account(client, db_session):
+    """Verify customer registration automatically provisions an active primary SAVINGS account with 0 balance."""
+    from sqlalchemy import select
+    from app.models.account import Account
+
+    reg_data = {
+        "username": "auto_acc_user",
+        "email": "auto_acc@example.com",
+        "password": "SecurePassword123!",
+        "full_name": "Auto Account User",
+        "pan_number": "ABCDE9999Z",
+        "phone": "+919876500000",
+    }
+    response = client.post("/api/v1/auth/register", json=reg_data)
+    assert response.status_code == 201
+
+    user = db_session.scalars(select(User).where(User.username == "auto_acc_user")).first()
+    assert user is not None
+    assert user.customer is not None
+
+    accounts = db_session.scalars(
+        select(Account).where(Account.customer_id == user.customer.id)
+    ).all()
+    assert len(accounts) == 1
+    savings_acc = accounts[0]
+    assert savings_acc.account_type == "SAVINGS"
+    assert savings_acc.cached_balance == Decimal("0.00")
+    assert savings_acc.currency == "INR"
+    assert savings_acc.status == "ACTIVE"
+    assert savings_acc.account_number.startswith("INR-SAV-")
+
+
+def test_customer_can_provision_additional_account(client, auth_headers_factory, test_customer_user, db_session):
+    """Verify authenticated customer can provision a secondary account via POST /api/v1/accounts."""
+    headers = auth_headers_factory(test_customer_user)
+    response = client.post("/api/v1/accounts", json={"account_type": "CURRENT"}, headers=headers)
+    assert response.status_code == 201
+    data = response.json()
+    assert data["account_type"] == "CURRENT"
+    assert Decimal(str(data["cached_balance"])) == Decimal("0.00")
+    assert data["status"] == "ACTIVE"
+    assert data["account_number"].startswith("INR-CUR-")

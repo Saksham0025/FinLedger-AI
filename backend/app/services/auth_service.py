@@ -112,6 +112,11 @@ class AuthService:
             kyc_status="VERIFIED",
         )
         db.add(customer)
+        db.flush()
+
+        # Provision initial primary SAVINGS account with INR 0.00 cached balance
+        from app.services.account_service import AccountService
+        AccountService.provision_customer_account(db, customer.id, account_type="SAVINGS")
         db.commit()
 
         # Re-query with eager load to return complete profile

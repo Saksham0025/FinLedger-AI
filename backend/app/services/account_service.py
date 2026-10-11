@@ -20,6 +20,35 @@ class AccountService:
     """Service managing customer account operations and simulated initial deposits."""
 
     @staticmethod
+    def provision_customer_account(
+        db: Session,
+        customer_id: uuid.UUID,
+        account_type: str = "SAVINGS",
+    ) -> Account:
+        """Provision a new customer account with zero initial cached balance.
+
+        Zero initial balance ensures strict adherence to double-entry ledger invariants.
+        Funding must be deposited against the internal clearing account.
+        """
+        if account_type not in ("SAVINGS", "CURRENT"):
+            raise ValueError(f"Invalid account type '{account_type}' for customer provisioning")
+
+        prefix = "SAV" if account_type == "SAVINGS" else "CUR"
+        account_number = f"INR-{prefix}-{uuid.uuid4().hex[:8].upper()}"
+        account = Account(
+            customer_id=customer_id,
+            account_number=account_number,
+            account_type=account_type,
+            currency=settings.DEFAULT_CURRENCY,
+            cached_balance=Decimal("0.00"),
+            status="ACTIVE",
+            version=1,
+        )
+        db.add(account)
+        db.flush()
+        return account
+
+    @staticmethod
     def get_customer_accounts(db: Session, customer_id: uuid.UUID) -> list[Account]:
         """Fetch all accounts belonging to a specific customer profile."""
         stmt = (
