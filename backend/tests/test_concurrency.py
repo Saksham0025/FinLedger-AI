@@ -14,15 +14,16 @@ from decimal import Decimal
 import threading
 import uuid
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models import User, Customer, Account, TransferRequest
+from app.models import User, Customer, Account, TransferRequest, FinancialProduct, Investment
 from app.services.transfer_service import (
     TransferService,
     InsufficientFundsError,
 )
+from app.services.investment_service import InvestmentService
 from app.services.ledger_service import LedgerService
 from app.services.account_service import AccountService
 
@@ -397,6 +398,360 @@ def test_concurrent_identical_requests_single_transfer(independent_engine):
         # Funds debited and credited EXACTLY once
         assert final_src.cached_balance == Decimal("4500.00")
         assert final_dst.cached_balance == Decimal("1500.00")
+
+        # Exactly 1 TransferRequest row
+        transfers = list(
+            verify_db.scalars(
+                select(TransferRequest).where(
+                    TransferRequest.source_user_id == user_id,
+                    TransferRequest.idempotency_key == shared_key,
+                )
+            ).all()
+        )
+        assert len(transfers) == 1
+
+
+def test_concurrent_investment_overspending_prevented(independent_engine):
+    """Verify concurrent investment purchases competing for funds cannot overdraw balance.
+
+    Setup:
+    - Customer has ₹30,000.00 in Savings Account.
+    - Two threads simultaneously attempt to buy ₹20,000.00 of FD-12M-STD (total ₹40,000.00 required).
+
+    Verification:
+    - Exactly one purchase succeeds.
+    - The other purchase fails with InsufficientFundsError.
+    - Final savings balance is exactly ₹10,000.00 (not negative).
+    - Exactly one Investment record exists.
+    """
+    with Session(independent_engine) as session:
+        user = User(
+            username=f"inv_overspend_{uuid.uuid4().hex[:8]}",
+            email=f"inv_overspend_{uuid.uuid4().hex[:8]}@example.com",
+            password_hash="$2b$12$samplepasswordhashforspeed",
+            role="CUSTOMER",
+            is_active=True,
+        )
+        session.add(user)
+        session.flush()
+
+        customer = Customer(
+            user_id=user.id,
+            full_name="Investment Overspend Customer",
+            kyc_status="VERIFIED",
+        )
+        session.add(customer)
+        session.flush()
+
+        src = Account(
+            customer_id=customer.id,
+            account_number=f"INR-INV-OVS-{uuid.uuid4().hex[:6]}",
+            account_type="SAVINGS",
+            currency="INR",
+            cached_balance=Decimal("0.00"),
+            status="ACTIVE",
+            version=1,
+        )
+        session.add(src)
+        session.commit()
+
+        AccountService.deposit_opening_funds(
+            db=session,
+            account_id=src.id,
+            amount=Decimal("30000.00"),
+            actor_user_id=user.id,
+        )
+        session.commit()
+
+        product = session.scalars(
+            select(FinancialProduct).where(FinancialProduct.code == "FD-12M-STD")
+        ).first()
+        assert product is not None
+
+        user_id = user.id
+        cust_id = customer.id
+        src_id = src.id
+        prod_id = product.id
+
+    barrier = threading.Barrier(2)
+    results = [None, None]
+    exceptions = [None, None]
+
+    def worker(worker_idx: int):
+        with Session(independent_engine) as db:
+            barrier.wait()
+            try:
+                inv, is_replay = InvestmentService.purchase_investment(
+                    db=db,
+                    caller_user_id=user_id,
+                    idempotency_key=str(uuid.uuid4()),
+                    product_id=prod_id,
+                    source_account_id=src_id,
+                    amount=Decimal("20000.00"),
+                )
+                results[worker_idx] = (inv.id, is_replay)
+            except Exception as e:
+                exceptions[worker_idx] = e
+
+    t1 = threading.Thread(target=worker, args=(0,))
+    t2 = threading.Thread(target=worker, args=(1,))
+
+    t1.start()
+    t2.start()
+    t1.join(timeout=10)
+    t2.join(timeout=10)
+
+    # Exactly one succeeded and one raised InsufficientFundsError
+    success_count = sum(1 for r in results if r is not None)
+    insuf_count = sum(1 for e in exceptions if isinstance(e, InsufficientFundsError))
+    assert success_count == 1, f"Expected 1 success, got {success_count}. Exceptions: {exceptions}"
+    assert insuf_count == 1, f"Expected 1 InsufficientFundsError, got {insuf_count}. Exceptions: {exceptions}"
+
+    with Session(independent_engine) as verify_db:
+        final_src = verify_db.get(Account, src_id)
+        # Account balance must be strictly 10,000.00 (30,000 - 20,000)
+        assert final_src.cached_balance == Decimal("10000.00")
+
+        # Derived ledger balance matches cached balance
+        derived_src = LedgerService.get_derived_balance(verify_db, src_id)
+        assert derived_src == Decimal("10000.00")
+
+        # Exactly 1 active investment position
+        investments = list(
+            verify_db.scalars(
+                select(Investment).where(
+                    Investment.customer_id == cust_id,
+                    Investment.status == "ACTIVE",
+                )
+            ).all()
+        )
+        assert len(investments) == 1
+        assert investments[0].invested_amount == Decimal("20000.00")
+
+        # Investment account cached balance is 20,000.00
+        inv_acc = verify_db.get(Account, investments[0].account_id)
+        assert inv_acc.cached_balance == Decimal("20000.00")
+
+
+def test_concurrent_investment_account_provisioning(independent_engine):
+    """Verify concurrent initial investments for a customer without an investment account.
+
+    Guarantees:
+    - Customer initially has zero INVESTMENT accounts.
+    - Two concurrent threads purchase investments simultaneously.
+    - Both purchases succeed without duplicate key violation on account_number.
+    - Exactly ONE INVESTMENT account is provisioned for the customer.
+    - Both investments link to that single account.
+    """
+    with Session(independent_engine) as session:
+        user = User(
+            username=f"inv_prov_{uuid.uuid4().hex[:8]}",
+            email=f"inv_prov_{uuid.uuid4().hex[:8]}@example.com",
+            password_hash="$2b$12$samplepasswordhashforspeed",
+            role="CUSTOMER",
+            is_active=True,
+        )
+        session.add(user)
+        session.flush()
+
+        customer = Customer(
+            user_id=user.id,
+            full_name="Provisioning Concurrency Customer",
+            kyc_status="VERIFIED",
+        )
+        session.add(customer)
+        session.flush()
+
+        src = Account(
+            customer_id=customer.id,
+            account_number=f"INR-PROV-SRC-{uuid.uuid4().hex[:6]}",
+            account_type="SAVINGS",
+            currency="INR",
+            cached_balance=Decimal("0.00"),
+            status="ACTIVE",
+            version=1,
+        )
+        session.add(src)
+        session.commit()
+
+        AccountService.deposit_opening_funds(
+            db=session,
+            account_id=src.id,
+            amount=Decimal("50000.00"),
+            actor_user_id=user.id,
+        )
+        session.commit()
+
+        product = session.scalars(
+            select(FinancialProduct).where(FinancialProduct.code == "FD-12M-STD")
+        ).first()
+
+        user_id = user.id
+        cust_id = customer.id
+        src_id = src.id
+        prod_id = product.id
+
+    barrier = threading.Barrier(2)
+    results = [None, None]
+    exceptions = [None, None]
+
+    def worker(worker_idx: int):
+        with Session(independent_engine) as db:
+            barrier.wait()
+            try:
+                inv, is_replay = InvestmentService.purchase_investment(
+                    db=db,
+                    caller_user_id=user_id,
+                    idempotency_key=str(uuid.uuid4()),
+                    product_id=prod_id,
+                    source_account_id=src_id,
+                    amount=Decimal("15000.00"),
+                )
+                results[worker_idx] = (inv.id, inv.account_id, is_replay)
+            except Exception as e:
+                exceptions[worker_idx] = e
+
+    t1 = threading.Thread(target=worker, args=(0,))
+    t2 = threading.Thread(target=worker, args=(1,))
+
+    t1.start()
+    t2.start()
+    t1.join(timeout=10)
+    t2.join(timeout=10)
+
+    # Both must succeed cleanly without unhandled crash or duplicate key collision
+    assert exceptions[0] is None, f"Worker 0 error: {exceptions[0]}"
+    assert exceptions[1] is None, f"Worker 1 error: {exceptions[1]}"
+    assert results[0] is not None
+    assert results[1] is not None
+
+    with Session(independent_engine) as verify_db:
+        # Exactly ONE INVESTMENT account created for this customer
+        inv_accounts = list(
+            verify_db.scalars(
+                select(Account).where(
+                    Account.customer_id == cust_id,
+                    Account.account_type == "INVESTMENT",
+                )
+            ).all()
+        )
+        assert len(inv_accounts) == 1, f"Expected exactly 1 investment account, found {len(inv_accounts)}"
+
+        # Both investments must point to the same single investment account
+        single_inv_acc = inv_accounts[0]
+        assert results[0][1] == single_inv_acc.id
+        assert results[1][1] == single_inv_acc.id
+
+        # Total balances:
+        # Savings: 50,000 - 15,000 - 15,000 = 20,000.00
+        # Investment: 15,000 + 15,000 = 30,000.00
+        final_src = verify_db.get(Account, src_id)
+        assert final_src.cached_balance == Decimal("20000.00")
+        assert single_inv_acc.cached_balance == Decimal("30000.00")
+
+        # Derived balances match
+        assert LedgerService.get_derived_balance(verify_db, src_id) == Decimal("20000.00")
+        assert LedgerService.get_derived_balance(verify_db, single_inv_acc.id) == Decimal("30000.00")
+
+
+def test_concurrent_identical_investment_requests_single_purchase(independent_engine):
+    """Verify concurrent investment submissions with the identical idempotency key result in 1 purchase."""
+    with Session(independent_engine) as session:
+        user = User(
+            username=f"inv_idem_{uuid.uuid4().hex[:8]}",
+            email=f"inv_idem_{uuid.uuid4().hex[:8]}@example.com",
+            password_hash="$2b$12$samplepasswordhashforspeed",
+            role="CUSTOMER",
+            is_active=True,
+        )
+        session.add(user)
+        session.flush()
+
+        customer = Customer(
+            user_id=user.id,
+            full_name="Idem Investment Customer",
+            kyc_status="VERIFIED",
+        )
+        session.add(customer)
+        session.flush()
+
+        src = Account(
+            customer_id=customer.id,
+            account_number=f"INR-INV-IDM-{uuid.uuid4().hex[:6]}",
+            account_type="SAVINGS",
+            currency="INR",
+            cached_balance=Decimal("0.00"),
+            status="ACTIVE",
+            version=1,
+        )
+        session.add(src)
+        session.commit()
+
+        AccountService.deposit_opening_funds(
+            db=session,
+            account_id=src.id,
+            amount=Decimal("40000.00"),
+            actor_user_id=user.id,
+        )
+        session.commit()
+
+        product = session.scalars(
+            select(FinancialProduct).where(FinancialProduct.code == "FD-12M-STD")
+        ).first()
+
+        user_id = user.id
+        src_id = src.id
+        prod_id = product.id
+        cust_id = customer.id
+
+    shared_key = str(uuid.uuid4())
+    barrier = threading.Barrier(2)
+    results = [None, None]
+    exceptions = [None, None]
+
+    def worker(worker_idx: int):
+        with Session(independent_engine) as db:
+            barrier.wait()
+            try:
+                inv, is_replay = InvestmentService.purchase_investment(
+                    db=db,
+                    caller_user_id=user_id,
+                    idempotency_key=shared_key,
+                    product_id=prod_id,
+                    source_account_id=src_id,
+                    amount=Decimal("15000.00"),
+                )
+                results[worker_idx] = (inv.id, is_replay)
+            except Exception as e:
+                exceptions[worker_idx] = e
+
+    t1 = threading.Thread(target=worker, args=(0,))
+    t2 = threading.Thread(target=worker, args=(1,))
+
+    t1.start()
+    t2.start()
+    t1.join(timeout=10)
+    t2.join(timeout=10)
+
+    # Both threads complete without unhandled crash
+    assert exceptions[0] is None or exceptions[1] is None
+
+    with Session(independent_engine) as verify_db:
+        final_src = verify_db.get(Account, src_id)
+        # Funds debited EXACTLY once: 40000 - 15000 = 25000.00
+        assert final_src.cached_balance == Decimal("25000.00")
+
+        # Exactly 1 Investment position
+        investments = list(
+            verify_db.scalars(
+                select(Investment).where(
+                    Investment.customer_id == cust_id,
+                    Investment.status == "ACTIVE",
+                )
+            ).all()
+        )
+        assert len(investments) == 1
+        assert investments[0].invested_amount == Decimal("15000.00")
 
         # Exactly 1 TransferRequest row
         transfers = list(

@@ -14,13 +14,14 @@ Verifies:
 from decimal import Decimal
 import uuid
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.models.user import User
 from app.models.account import Account
 from app.models.customer import Customer
 from app.models.product import FinancialProduct, Investment
 from app.models.ledger import LedgerTransaction, LedgerEntry
+from app.models.transfer import TransferRequest
 from app.models.audit import AuditLog
 from app.services.account_service import AccountService
 from app.services.investment_service import (
@@ -29,6 +30,7 @@ from app.services.investment_service import (
     InvestmentProductError,
 )
 from app.services.transfer_service import (
+    TransferBusinessError,
     InsufficientFundsError,
     TransferOwnershipError,
 )
@@ -388,3 +390,123 @@ def test_investment_access_control_isolation(
     resp_staff = client.get(f"/api/v1/investments/{inv.id}", headers=staff_headers)
     assert resp_staff.status_code == 200
     assert resp_staff.json()["id"] == str(inv.id)
+
+
+def test_forced_failure_investment_atomic_rollback(raw_db_session, monkeypatch):
+    """Verify forced failure during investment purchase rolls back investment, ledger, and balances together."""
+    user = User(
+        username=f"force_fail_user_{uuid.uuid4().hex[:6]}",
+        email=f"force_fail_{uuid.uuid4().hex[:6]}@example.com",
+        password_hash="$2b$12$samplepasswordhashforspeed",
+        role="CUSTOMER",
+        is_active=True,
+    )
+    raw_db_session.add(user)
+    raw_db_session.commit()
+
+    customer = Customer(
+        user_id=user.id,
+        full_name="Forced Failure Customer",
+        phone="+919876543210",
+        pan_number=f"FAIL{uuid.uuid4().hex[:6].upper()}",
+        kyc_status="VERIFIED",
+    )
+    raw_db_session.add(customer)
+    raw_db_session.commit()
+
+    src_acc = Account(
+        customer_id=customer.id,
+        account_number=f"INR-FAIL-SRC-{uuid.uuid4().hex[:6].upper()}",
+        account_type="SAVINGS",
+        currency="INR",
+        cached_balance=Decimal("0.00"),
+        status="ACTIVE",
+        version=1,
+    )
+    raw_db_session.add(src_acc)
+    raw_db_session.commit()
+
+    initial_deposit = Decimal("50000.00")
+    AccountService.deposit_opening_funds(
+        db=raw_db_session,
+        account_id=src_acc.id,
+        amount=initial_deposit,
+        description="Fund forced failure test",
+        actor_user_id=user.id,
+    )
+    raw_db_session.commit()
+
+    product = raw_db_session.scalars(
+        select(FinancialProduct).where(FinancialProduct.code == "FD-12M-STD")
+    ).first()
+    assert product is not None
+
+    idempotency_key = str(uuid.uuid4())
+    src_id = src_acc.id
+    invest_amount = Decimal("20000.00")
+
+    # Intercept db.commit on raw_db_session to force failure right at transaction commit
+    original_commit = raw_db_session.commit
+
+    def simulated_failing_commit():
+        raise RuntimeError("Simulated database failure during investment commit")
+
+    monkeypatch.setattr(raw_db_session, "commit", simulated_failing_commit)
+
+    with pytest.raises(TransferBusinessError) as exc_info:
+        InvestmentService.purchase_investment(
+            db=raw_db_session,
+            caller_user_id=user.id,
+            idempotency_key=idempotency_key,
+            product_id=product.id,
+            source_account_id=src_id,
+            amount=invest_amount,
+        )
+
+    assert "Simulated database failure" in str(exc_info.value)
+
+    # Restore commit for verification
+    monkeypatch.setattr(raw_db_session, "commit", original_commit)
+
+    # Re-fetch from fresh state to verify all financial state rolled back together
+    fresh_src = raw_db_session.get(Account, src_id)
+    assert fresh_src.cached_balance == initial_deposit
+
+    # Verify derived ledger balance remains initial_deposit
+    derived = LedgerService.get_derived_balance(raw_db_session, src_id)
+    assert derived == initial_deposit
+
+    # Verify zero investment records were committed
+    investments_count = raw_db_session.scalar(
+        select(func.count(Investment.id)).where(Investment.customer_id == customer.id)
+    )
+    assert investments_count == 0
+
+    # Verify zero INVESTMENT_PURCHASE ledger transactions or entries were committed for this source account
+    txns_count = raw_db_session.scalar(
+        select(func.count(LedgerTransaction.id))
+        .join(TransferRequest, LedgerTransaction.transfer_request_id == TransferRequest.id)
+        .where(
+            TransferRequest.source_account_id == src_id,
+            LedgerTransaction.transaction_type == "INVESTMENT_PURCHASE",
+        )
+    )
+    assert txns_count == 0
+
+    # Verify zero debit ledger entries were posted to this source account
+    debits_count = raw_db_session.scalar(
+        select(func.count(LedgerEntry.id)).where(
+            LedgerEntry.account_id == src_id,
+            LedgerEntry.entry_type == "DEBIT",
+        )
+    )
+    assert debits_count == 0
+
+    # Verify failure audit record was persisted independently
+    failed_audit = raw_db_session.scalars(
+        select(AuditLog).where(
+            AuditLog.action == "INVESTMENT_PURCHASE_FAILED",
+            AuditLog.entity_id == idempotency_key,
+        )
+    ).first()
+    assert failed_audit is not None

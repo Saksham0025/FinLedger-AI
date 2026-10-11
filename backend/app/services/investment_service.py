@@ -70,6 +70,13 @@ class InvestmentService:
         user_agent: str | None = None,
     ) -> None:
         """Persist failed investment attempt in an independent transaction."""
+        # Roll back financial transaction first to release row-level locks
+        if db is not None:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
         target_engine = db.get_bind() if db is not None else SessionLocal.kw.get("bind")
         with Session(target_engine) as isolated_db:
             transfer_id = None
@@ -221,8 +228,12 @@ class InvestmentService:
             )
             raise InvestmentProductError(reason)
 
-        # Step 3: Validate customer profile
-        cust_stmt = select(Customer).where(Customer.user_id == caller_user_id)
+        # Step 3: Validate customer profile and lock to prevent concurrent provisioning races
+        cust_stmt = (
+            select(Customer)
+            .where(Customer.user_id == caller_user_id)
+            .with_for_update()
+        )
         customer = db.scalars(cust_stmt).first()
         if not customer:
             reason = "No customer profile found for caller"
