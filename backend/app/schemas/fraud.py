@@ -35,8 +35,9 @@ class FraudAlertReviewRequest(BaseModel):
         pattern=r"^(CLEARED|CONFIRMED_FRAUD|ESCALATED)$",
         description="Updated review status (canonical enum: CLEARED, CONFIRMED_FRAUD, ESCALATED)",
     )
-    review_notes: str | None = Field(
-        default=None,
+    review_notes: str = Field(
+        ...,
+        min_length=3,
         max_length=1000,
-        description="Forensic investigation notes from staff member",
+        description="Mandatory forensic investigation notes from staff member",
     )

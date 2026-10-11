@@ -19,6 +19,7 @@ from app.models.audit import AuditLog
 # Regex patterns for sensitive values
 JWT_PATTERN = re.compile(r"^eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$")
 BCRYPT_PATTERN = re.compile(r"^\$2[abxy]\$\d{2}\$[A-Za-z0-9./]{53}$")
+PAN_PATTERN = re.compile(r"^[A-Z]{5}[0-9]{4}[A-Z]$")
 
 # Sensitive key fragments (case-insensitive match)
 SENSITIVE_KEY_FRAGMENTS = {
@@ -35,11 +36,17 @@ SENSITIVE_KEY_FRAGMENTS = {
     "cvv",
     "pin",
     "private_key",
+    "pan",
+    "pan_number",
+    "ssn",
+    "tax_id",
+    "aadhaar",
+    "national_id",
 }
 
 
 def sanitize_audit_metadata(data: Any) -> Any:
-    """Recursively scrub sensitive fields, tokens, and hashes from audit metadata."""
+    """Recursively scrub sensitive fields, tokens, hashes, and PANs from audit metadata."""
     if isinstance(data, dict):
         sanitized = {}
         for k, v in data.items():
@@ -52,8 +59,8 @@ def sanitize_audit_metadata(data: Any) -> Any:
     elif isinstance(data, list):
         return [sanitize_audit_metadata(item) for item in data]
     elif isinstance(data, str):
-        # Scrub standalone JWTs or password hashes passed as values
-        if JWT_PATTERN.match(data) or BCRYPT_PATTERN.match(data):
+        # Scrub standalone JWTs, password hashes, or PAN identifiers passed as values
+        if JWT_PATTERN.match(data) or BCRYPT_PATTERN.match(data) or PAN_PATTERN.match(data):
             return "[REDACTED]"
         return data
     elif isinstance(data, (int, float, bool)) or data is None:

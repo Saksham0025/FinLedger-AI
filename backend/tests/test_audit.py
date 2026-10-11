@@ -21,13 +21,17 @@ def test_sanitize_metadata_redaction_unit():
             "bearer_token": "token_val",
             "api_key": "key_val",
             "safe_nested": 42,
+            "pan_number": "ABCDE1234F",
+            "tax_id": "TAX-12345",
         },
         "list_items": [
             {"secret_code": "code123"},
             {"safe_item": "ok"},
+            {"pan": "ABCDE1234F"},
         ],
         "random_value_jwt": jwt_sample,
         "random_value_bcrypt": bcrypt_sample,
+        "standalone_pan": "ABCDE1234F",
         "harmless_text": "hello_world",
     }
 
@@ -38,10 +42,14 @@ def test_sanitize_metadata_redaction_unit():
     assert cleaned["nested"]["bearer_token"] == "[REDACTED]"
     assert cleaned["nested"]["api_key"] == "[REDACTED]"
     assert cleaned["nested"]["safe_nested"] == 42
+    assert cleaned["nested"]["pan_number"] == "[REDACTED]"
+    assert cleaned["nested"]["tax_id"] == "[REDACTED]"
     assert cleaned["list_items"][0]["secret_code"] == "[REDACTED]"
     assert cleaned["list_items"][1]["safe_item"] == "ok"
+    assert cleaned["list_items"][2]["pan"] == "[REDACTED]"
     assert cleaned["random_value_jwt"] == "[REDACTED]"
     assert cleaned["random_value_bcrypt"] == "[REDACTED]"
+    assert cleaned["standalone_pan"] == "[REDACTED]"
     assert cleaned["harmless_text"] == "hello_world"
 
 

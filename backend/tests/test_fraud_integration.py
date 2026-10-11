@@ -224,3 +224,84 @@ def test_fraud_alert_review_workflow(client, auth_headers_factory, test_staff_us
     ).first()
     assert audit_entry is not None
     assert audit_entry.actor_user_id == test_staff_user.id
+
+
+def test_fraud_alert_review_validation(client, auth_headers_factory, test_staff_user, db_session, sample_customer, sample_account, sample_dest_account):
+    """Verify validation enforcement: mandatory review notes and canonical enum review status."""
+    db_session.commit()
+    transfer_req, _ = TransferService.execute_transfer(
+        db=db_session,
+        caller_user_id=sample_customer.user_id,
+        idempotency_key=str(uuid.uuid4()),
+        source_account_id=sample_account.id,
+        destination_account_id=sample_dest_account.id,
+        amount=Decimal("100.00"),
+    )
+    pred = db_session.scalars(
+        select(FraudPrediction).where(FraudPrediction.transfer_request_id == transfer_req.id)
+    ).first()
+    assert pred is not None
+
+    staff_headers = auth_headers_factory(test_staff_user)
+
+    # 1. Missing review_notes -> 422
+    res_missing_notes = client.patch(
+        f"/api/v1/fraud/alerts/{pred.id}/review",
+        json={"review_status": "CLEARED"},
+        headers=staff_headers,
+    )
+    assert res_missing_notes.status_code == 422
+
+    # 2. Too short review_notes (< 3 chars) -> 422
+    res_short_notes = client.patch(
+        f"/api/v1/fraud/alerts/{pred.id}/review",
+        json={"review_status": "CLEARED", "review_notes": "ok"},
+        headers=staff_headers,
+    )
+    assert res_short_notes.status_code == 422
+
+    # 3. Invalid review_status -> 422
+    res_invalid_status = client.patch(
+        f"/api/v1/fraud/alerts/{pred.id}/review",
+        json={"review_status": "INVALID_STATUS", "review_notes": "Forensic investigation complete"},
+        headers=staff_headers,
+    )
+    assert res_invalid_status.status_code == 422
+
+    # 4. Attempting to set review_status to PENDING -> 422
+    res_pending_status = client.patch(
+        f"/api/v1/fraud/alerts/{pred.id}/review",
+        json={"review_status": "PENDING", "review_notes": "Resetting status"},
+        headers=staff_headers,
+    )
+    assert res_pending_status.status_code == 422
+
+
+def test_fraud_prediction_privacy_no_sensitive_leaks(db_session, sample_customer, sample_account, sample_dest_account):
+    """Verify that persisted FraudPrediction records contain zero credentials, PANs, or tokens."""
+    db_session.commit()
+    transfer_req, _ = TransferService.execute_transfer(
+        db=db_session,
+        caller_user_id=sample_customer.user_id,
+        idempotency_key=str(uuid.uuid4()),
+        source_account_id=sample_account.id,
+        destination_account_id=sample_dest_account.id,
+        amount=Decimal("250.00"),
+    )
+
+    pred = db_session.scalars(
+        select(FraudPrediction).where(FraudPrediction.transfer_request_id == transfer_req.id)
+    ).first()
+    assert pred is not None
+
+    # Check feature snapshot keys
+    snapshot_keys = set(pred.feature_snapshot.keys())
+    disallowed_substrings = ["password", "token", "secret", "pan", "ssn", "cvv", "pin", "auth"]
+    for key in snapshot_keys:
+        for dis in disallowed_substrings:
+            assert dis not in key.lower(), f"Sensitive key fragment '{dis}' found in feature snapshot: '{key}'"
+
+    # Explanation text should not contain auth tokens or sensitive patterns
+    assert "Bearer" not in pred.explanation
+    assert "eyJ" not in pred.explanation
+

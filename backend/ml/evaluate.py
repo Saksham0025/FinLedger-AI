@@ -11,6 +11,7 @@ Calculates:
 """
 
 import json
+import sys
 from pathlib import Path
 import joblib
 import numpy as np
@@ -24,6 +25,11 @@ from sklearn.metrics import (
     confusion_matrix,
     classification_report,
 )
+
+# Ensure backend root is on sys.path for direct CLI script execution
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+if str(_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_DIR))
 
 from ml.features import extract_features_df
 from ml.rules import RuleBaseline

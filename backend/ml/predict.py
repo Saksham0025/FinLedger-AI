@@ -114,12 +114,20 @@ class FraudDetector:
             decision = DECISION_HIGH_RISK
 
         # Construct explanation
-        if decision == DECISION_LOW_RISK:
-            explanation = "Transaction risk score is low. " + rule_explanation
-        elif decision == DECISION_MEDIUM_RISK:
-            explanation = f"Moderate risk (score {risk_score:.2f}). " + rule_explanation
+        if rule_flags:
+            flags_detail = rule_explanation
         else:
-            explanation = f"HIGH RISK ALERT (score {risk_score:.2f} >= threshold {self.decision_threshold:.2f}). " + rule_explanation
+            if decision == DECISION_LOW_RISK:
+                flags_detail = "Transaction features conform to standard customer activity and temporal patterns."
+            else:
+                flags_detail = "Elevated risk driven by statistical multivariate feature anomaly in model inference (heuristic thresholds not breached individually)."
+
+        if decision == DECISION_LOW_RISK:
+            explanation = f"Transaction risk score is low ({risk_score:.4f}). {flags_detail}"
+        elif decision == DECISION_MEDIUM_RISK:
+            explanation = f"Moderate risk (score {risk_score:.4f}). {flags_detail}"
+        else:
+            explanation = f"HIGH RISK ALERT (score {risk_score:.4f} >= threshold {self.decision_threshold:.2f}). {flags_detail}"
 
         return {
             "risk_score": risk_score,

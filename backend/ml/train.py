@@ -9,6 +9,7 @@ Implements:
 
 from datetime import datetime, timezone
 import json
+import sys
 from pathlib import Path
 import joblib
 import numpy as np
@@ -16,6 +17,11 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+
+# Ensure backend root is on sys.path for direct CLI script execution
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+if str(_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_DIR))
 
 from app.core.config import settings
 from ml.generator import generate_synthetic_transactions
