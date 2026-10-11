@@ -144,9 +144,9 @@ Add simulated financial products (Fixed Deposits, Liquid Funds), double-entry in
    - Fraud alert distribution by severity and review status (`PENDING`, `CLEARED`, `CONFIRMED_FRAUD`, `ESCALATED`).
 
 ### Acceptance Criteria
-- [ ] Purchasing an investment creates balanced double-entry ledger postings between savings and investment accounts.
-- [ ] Investment list API returns customer's active holdings with calculated current yield.
-- [ ] Reporting endpoints return aggregated metrics derived directly from database queries.
+- [x] Purchasing an investment creates balanced double-entry ledger postings between savings and investment accounts.
+- [x] Investment list API returns customer's active holdings with calculated current yield.
+- [x] Reporting endpoints return aggregated metrics derived directly from database queries.
 
 ---
 

@@ -12,6 +12,21 @@ from app.schemas.account import AccountResponse, DepositRequest
 from app.schemas.transfer import TransferCreateRequest, TransferResponse
 from app.schemas.ledger import LedgerEntryResponse, ReconciliationReport, DiscrepancyItem
 from app.schemas.fraud import FraudPredictionResponse, FraudAlertReviewRequest
+from app.schemas.product import ProductCreateRequest, ProductResponse
+from app.schemas.investment import (
+    InvestmentCreateRequest,
+    InvestmentResponse,
+    PortfolioHoldingItem,
+    PortfolioSummaryResponse,
+)
+from app.schemas.report import (
+    CustomerFinancialSummaryResponse,
+    ProductSummaryItem,
+    ProductsSummaryResponse,
+    DailyVolumeItem,
+    DailyVolumeResponse,
+    BalanceDistributionResponse,
+)
 
 __all__ = [
     "LoginRequest",
@@ -29,4 +44,16 @@ __all__ = [
     "DiscrepancyItem",
     "FraudPredictionResponse",
     "FraudAlertReviewRequest",
+    "ProductCreateRequest",
+    "ProductResponse",
+    "InvestmentCreateRequest",
+    "InvestmentResponse",
+    "PortfolioHoldingItem",
+    "PortfolioSummaryResponse",
+    "CustomerFinancialSummaryResponse",
+    "ProductSummaryItem",
+    "ProductsSummaryResponse",
+    "DailyVolumeItem",
+    "DailyVolumeResponse",
+    "BalanceDistributionResponse",
 ]

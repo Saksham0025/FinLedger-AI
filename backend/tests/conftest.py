@@ -52,6 +52,7 @@ def clean_test_database_session(engine):
     """Ensure finledger_test starts clean and ends clean with internal clearing account seeded."""
     from sqlalchemy import text
     from scripts.init_db import seed_clearing_account_for_engine
+    from scripts.seed_products import seed_products_for_engine
 
     def _truncate_and_reseed():
         with engine.connect() as conn:
@@ -64,6 +65,7 @@ def clean_test_database_session(engine):
             )
             conn.commit()
         seed_clearing_account_for_engine(engine, "Test")
+        seed_products_for_engine(engine, "Test")
 
     _truncate_and_reseed()
     yield
