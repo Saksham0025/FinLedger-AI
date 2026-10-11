@@ -12,6 +12,7 @@ from app.models import (
     LedgerTransaction,
     LedgerEntry,
 )
+from app.services.account_service import AccountService
 
 
 def test_balanced_ledger_transaction_commits_cleanly(raw_db_session):
@@ -34,16 +35,30 @@ def test_balanced_ledger_transaction_commits_cleanly(raw_db_session):
         customer_id=customer.id,
         account_number=f"ACC_{uuid.uuid4().hex[:8]}",
         account_type="SAVINGS",
-        cached_balance=Decimal("1000.00"),
+        cached_balance=Decimal("0.00"),
     )
     acc2 = Account(
         customer_id=customer.id,
         account_number=f"ACC_{uuid.uuid4().hex[:8]}",
         account_type="SAVINGS",
-        cached_balance=Decimal("500.00"),
+        cached_balance=Decimal("0.00"),
     )
     raw_db_session.add_all([acc1, acc2])
-    raw_db_session.flush()
+    raw_db_session.commit()
+
+    AccountService.deposit_opening_funds(
+        db=raw_db_session,
+        account_id=acc1.id,
+        amount=Decimal("1000.00"),
+        actor_user_id=user.id,
+    )
+    AccountService.deposit_opening_funds(
+        db=raw_db_session,
+        account_id=acc2.id,
+        amount=Decimal("500.00"),
+        actor_user_id=user.id,
+    )
+    raw_db_session.commit()
 
     # Create transaction header
     txn = LedgerTransaction(
@@ -68,7 +83,9 @@ def test_balanced_ledger_transaction_commits_cleanly(raw_db_session):
         amount=Decimal("200.00"),
         sequence_num=2,
     )
-    raw_db_session.add_all([entry_debit, entry_credit])
+    acc1.cached_balance -= Decimal("200.00")
+    acc2.cached_balance += Decimal("200.00")
+    raw_db_session.add_all([entry_debit, entry_credit, acc1, acc2])
 
     # Must commit with zero trigger exceptions
     raw_db_session.commit()
@@ -157,7 +174,7 @@ def test_multi_leg_balanced_transaction_commits_cleanly(raw_db_session):
         customer_id=customer.id,
         account_number=f"SRC_{uuid.uuid4().hex[:8]}",
         account_type="SAVINGS",
-        cached_balance=Decimal("2000.00"),
+        cached_balance=Decimal("0.00"),
     )
     acc_dst1 = Account(
         customer_id=customer.id,
@@ -172,7 +189,15 @@ def test_multi_leg_balanced_transaction_commits_cleanly(raw_db_session):
         cached_balance=Decimal("0.00"),
     )
     raw_db_session.add_all([acc_src, acc_dst1, acc_dst2])
-    raw_db_session.flush()
+    raw_db_session.commit()
+
+    AccountService.deposit_opening_funds(
+        db=raw_db_session,
+        account_id=acc_src.id,
+        amount=Decimal("2000.00"),
+        actor_user_id=user.id,
+    )
+    raw_db_session.commit()
 
     txn = LedgerTransaction(
         transaction_type="CUSTOMER_TRANSFER",
@@ -202,7 +227,10 @@ def test_multi_leg_balanced_transaction_commits_cleanly(raw_db_session):
         amount=Decimal("500.00"),
         sequence_num=3,
     )
-    raw_db_session.add_all([leg1, leg2, leg3])
+    acc_src.cached_balance -= Decimal("1000.00")
+    acc_dst1.cached_balance += Decimal("500.00")
+    acc_dst2.cached_balance += Decimal("500.00")
+    raw_db_session.add_all([leg1, leg2, leg3, acc_src, acc_dst1, acc_dst2])
 
     raw_db_session.commit()
     assert txn.id is not None

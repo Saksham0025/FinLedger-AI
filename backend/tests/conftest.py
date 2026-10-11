@@ -47,6 +47,29 @@ def engine():
     test_engine.dispose()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def clean_test_database_session(engine):
+    """Ensure finledger_test starts clean and ends clean with internal clearing account seeded."""
+    from sqlalchemy import text
+    from scripts.init_db import seed_clearing_account_for_engine
+
+    def _truncate_and_reseed():
+        with engine.connect() as conn:
+            conn.execute(
+                text(
+                    "TRUNCATE audit_logs, fraud_predictions, transfer_requests, "
+                    "ledger_entries, ledger_transactions, investments, "
+                    "financial_products, accounts, customers, users CASCADE;"
+                )
+            )
+            conn.commit()
+        seed_clearing_account_for_engine(engine, "Test")
+
+    _truncate_and_reseed()
+    yield
+    _truncate_and_reseed()
+
+
 @pytest.fixture(scope="function")
 def db_session(engine):
     """Provides an isolated database session rolled back after each test."""

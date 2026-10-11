@@ -104,7 +104,7 @@ def test_insufficient_funds_rejection(raw_db_session):
         account_number=f"INR-INSUF-SRC-{uuid.uuid4().hex[:6]}",
         account_type="SAVINGS",
         currency="INR",
-        cached_balance=Decimal("1000.00"),
+        cached_balance=Decimal("0.00"),
         status="ACTIVE",
         version=1,
     )
@@ -113,11 +113,25 @@ def test_insufficient_funds_rejection(raw_db_session):
         account_number=f"INR-INSUF-DST-{uuid.uuid4().hex[:6]}",
         account_type="SAVINGS",
         currency="INR",
-        cached_balance=Decimal("500.00"),
+        cached_balance=Decimal("0.00"),
         status="ACTIVE",
         version=1,
     )
     raw_db_session.add_all([src_acc, dst_acc])
+    raw_db_session.commit()
+
+    AccountService.deposit_opening_funds(
+        db=raw_db_session,
+        account_id=src_acc.id,
+        amount=Decimal("1000.00"),
+        actor_user_id=user.id,
+    )
+    AccountService.deposit_opening_funds(
+        db=raw_db_session,
+        account_id=dst_acc.id,
+        amount=Decimal("500.00"),
+        actor_user_id=user.id,
+    )
     raw_db_session.commit()
 
     src_id = src_acc.id

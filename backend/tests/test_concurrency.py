@@ -24,6 +24,7 @@ from app.services.transfer_service import (
     InsufficientFundsError,
 )
 from app.services.ledger_service import LedgerService
+from app.services.account_service import AccountService
 
 
 @pytest.fixture
@@ -43,7 +44,7 @@ def test_concurrent_overspending_prevented(independent_engine):
     """Critical DBMS test: Two simultaneous ₹80 transfers against a ₹100 balance.
 
     Setup:
-    - Customer has exactly ₹100.00 in Source Account.
+    - Customer has exactly ₹100.00 in Source Account (deposited from internal clearing).
     - Destination Account has ₹0.00.
     - Two threads simultaneously attempt to transfer ₹80.00 using distinct idempotency keys.
 
@@ -80,7 +81,7 @@ def test_concurrent_overspending_prevented(independent_engine):
             account_number=f"INR-CONC-SRC-{uuid.uuid4().hex[:6]}",
             account_type="SAVINGS",
             currency="INR",
-            cached_balance=Decimal("100.00"),
+            cached_balance=Decimal("0.00"),
             status="ACTIVE",
             version=1,
         )
@@ -94,6 +95,16 @@ def test_concurrent_overspending_prevented(independent_engine):
             version=1,
         )
         session.add_all([src_acc, dst_acc])
+        session.commit()
+
+        # Properly fund source account via double-entry opening deposit
+        AccountService.deposit_opening_funds(
+            db=session,
+            account_id=src_acc.id,
+            amount=Decimal("100.00"),
+            description="Opening deposit for concurrency test",
+            actor_user_id=user.id,
+        )
         session.commit()
 
         user_id = user.id
@@ -154,7 +165,8 @@ def test_concurrent_overspending_prevented(independent_engine):
         src_derived = LedgerService.get_derived_balance(verify_db, src_id)
         dst_derived = LedgerService.get_derived_balance(verify_db, dst_id)
 
-        assert src_derived == Decimal("-80.00") or src_derived == fresh_src.cached_balance - Decimal("100.00")
+        assert src_derived == fresh_src.cached_balance == Decimal("20.00")
+        assert dst_derived == fresh_dst.cached_balance == Decimal("80.00")
         # Since src started with 100 before ledger postings, net ledger entries on src is -80.00
         # cached_balance is 100 - 80 = 20.00
 
@@ -197,7 +209,7 @@ def test_concurrent_bidirectional_transfers_no_deadlock(independent_engine):
             account_number=f"INR-BIDI-A-{uuid.uuid4().hex[:6]}",
             account_type="SAVINGS",
             currency="INR",
-            cached_balance=Decimal("1000.00"),
+            cached_balance=Decimal("0.00"),
             status="ACTIVE",
             version=1,
         )
@@ -206,11 +218,25 @@ def test_concurrent_bidirectional_transfers_no_deadlock(independent_engine):
             account_number=f"INR-BIDI-B-{uuid.uuid4().hex[:6]}",
             account_type="SAVINGS",
             currency="INR",
-            cached_balance=Decimal("1000.00"),
+            cached_balance=Decimal("0.00"),
             status="ACTIVE",
             version=1,
         )
         session.add_all([acc_a, acc_b])
+        session.commit()
+
+        AccountService.deposit_opening_funds(
+            db=session,
+            account_id=acc_a.id,
+            amount=Decimal("1000.00"),
+            actor_user_id=user.id,
+        )
+        AccountService.deposit_opening_funds(
+            db=session,
+            account_id=acc_b.id,
+            amount=Decimal("1000.00"),
+            actor_user_id=user.id,
+        )
         session.commit()
 
         user_id = user.id
@@ -298,7 +324,7 @@ def test_concurrent_identical_requests_single_transfer(independent_engine):
             account_number=f"INR-IDEM-R1-{uuid.uuid4().hex[:6]}",
             account_type="SAVINGS",
             currency="INR",
-            cached_balance=Decimal("5000.00"),
+            cached_balance=Decimal("0.00"),
             status="ACTIVE",
             version=1,
         )
@@ -307,11 +333,25 @@ def test_concurrent_identical_requests_single_transfer(independent_engine):
             account_number=f"INR-IDEM-R2-{uuid.uuid4().hex[:6]}",
             account_type="SAVINGS",
             currency="INR",
-            cached_balance=Decimal("1000.00"),
+            cached_balance=Decimal("0.00"),
             status="ACTIVE",
             version=1,
         )
         session.add_all([src, dst])
+        session.commit()
+
+        AccountService.deposit_opening_funds(
+            db=session,
+            account_id=src.id,
+            amount=Decimal("5000.00"),
+            actor_user_id=user.id,
+        )
+        AccountService.deposit_opening_funds(
+            db=session,
+            account_id=dst.id,
+            amount=Decimal("1000.00"),
+            actor_user_id=user.id,
+        )
         session.commit()
 
         user_id = user.id

@@ -13,6 +13,7 @@ from app.models import (
     LedgerEntry,
     AuditLog,
 )
+from app.services.account_service import AccountService
 
 
 def test_ledger_entries_immutable_against_update(raw_db_session):
@@ -26,10 +27,18 @@ def test_ledger_entries_immutable_against_update(raw_db_session):
     raw_db_session.flush()
 
     customer = Customer(user_id=user.id, full_name="User")
-    acc1 = Account(customer_id=customer.id, account_number=f"A1_{uuid.uuid4().hex[:8]}", account_type="SAVINGS")
-    acc2 = Account(customer_id=customer.id, account_number=f"A2_{uuid.uuid4().hex[:8]}", account_type="SAVINGS")
+    acc1 = Account(customer_id=customer.id, account_number=f"A1_{uuid.uuid4().hex[:8]}", account_type="SAVINGS", cached_balance=Decimal("0.00"))
+    acc2 = Account(customer_id=customer.id, account_number=f"A2_{uuid.uuid4().hex[:8]}", account_type="SAVINGS", cached_balance=Decimal("0.00"))
     raw_db_session.add_all([customer, acc1, acc2])
-    raw_db_session.flush()
+    raw_db_session.commit()
+
+    AccountService.deposit_opening_funds(
+        db=raw_db_session,
+        account_id=acc1.id,
+        amount=Decimal("100.00"),
+        actor_user_id=user.id,
+    )
+    raw_db_session.commit()
 
     txn = LedgerTransaction(transaction_type="CUSTOMER_TRANSFER", description="Transfer")
     raw_db_session.add(txn)
@@ -37,7 +46,9 @@ def test_ledger_entries_immutable_against_update(raw_db_session):
 
     leg1 = LedgerEntry(transaction_id=txn.id, account_id=acc1.id, entry_type="DEBIT", amount=Decimal("100.00"), sequence_num=1)
     leg2 = LedgerEntry(transaction_id=txn.id, account_id=acc2.id, entry_type="CREDIT", amount=Decimal("100.00"), sequence_num=2)
-    raw_db_session.add_all([leg1, leg2])
+    acc1.cached_balance -= Decimal("100.00")
+    acc2.cached_balance += Decimal("100.00")
+    raw_db_session.add_all([leg1, leg2, acc1, acc2])
     raw_db_session.commit()
 
     # Attempt illicit direct UPDATE on committed ledger entry
@@ -64,10 +75,18 @@ def test_ledger_entries_immutable_against_delete(raw_db_session):
     raw_db_session.flush()
 
     customer = Customer(user_id=user.id, full_name="User")
-    acc1 = Account(customer_id=customer.id, account_number=f"A1_{uuid.uuid4().hex[:8]}", account_type="SAVINGS")
-    acc2 = Account(customer_id=customer.id, account_number=f"A2_{uuid.uuid4().hex[:8]}", account_type="SAVINGS")
+    acc1 = Account(customer_id=customer.id, account_number=f"A1_{uuid.uuid4().hex[:8]}", account_type="SAVINGS", cached_balance=Decimal("0.00"))
+    acc2 = Account(customer_id=customer.id, account_number=f"A2_{uuid.uuid4().hex[:8]}", account_type="SAVINGS", cached_balance=Decimal("0.00"))
     raw_db_session.add_all([customer, acc1, acc2])
-    raw_db_session.flush()
+    raw_db_session.commit()
+
+    AccountService.deposit_opening_funds(
+        db=raw_db_session,
+        account_id=acc1.id,
+        amount=Decimal("100.00"),
+        actor_user_id=user.id,
+    )
+    raw_db_session.commit()
 
     txn = LedgerTransaction(transaction_type="CUSTOMER_TRANSFER", description="Transfer")
     raw_db_session.add(txn)
@@ -75,7 +94,9 @@ def test_ledger_entries_immutable_against_delete(raw_db_session):
 
     leg1 = LedgerEntry(transaction_id=txn.id, account_id=acc1.id, entry_type="DEBIT", amount=Decimal("100.00"), sequence_num=1)
     leg2 = LedgerEntry(transaction_id=txn.id, account_id=acc2.id, entry_type="CREDIT", amount=Decimal("100.00"), sequence_num=2)
-    raw_db_session.add_all([leg1, leg2])
+    acc1.cached_balance -= Decimal("100.00")
+    acc2.cached_balance += Decimal("100.00")
+    raw_db_session.add_all([leg1, leg2, acc1, acc2])
     raw_db_session.commit()
 
     # Attempt illicit DELETE on committed ledger entry
