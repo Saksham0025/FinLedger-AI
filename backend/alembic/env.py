@@ -25,10 +25,17 @@ target_metadata = Base.metadata
 
 
 def get_target_url() -> str:
-    """Return database URL based on runtime arguments (e.g. -x db=test)."""
+    """Return database URL based on runtime arguments (e.g. -x db=test, -x db=bench, -x db=<custom>)."""
     x_args = context.get_x_argument(as_dictionary=True)
-    if x_args.get("db") == "test":
+    db_arg = x_args.get("db")
+    if db_arg == "test":
         return settings.sync_test_database_url
+    elif db_arg == "bench":
+        base_url = settings.sync_database_url
+        return base_url.replace(f"/{settings.DB_NAME}", "/finledger_bench")
+    elif db_arg:
+        base_url = settings.sync_database_url
+        return base_url.replace(f"/{settings.DB_NAME}", f"/{db_arg}")
     return settings.sync_database_url
 
 

@@ -81,7 +81,6 @@ class LedgerEntry(Base):
         UUID(as_uuid=True),
         ForeignKey("accounts.id", ondelete="RESTRICT"),
         nullable=False,
-        index=True,
     )
     entry_type: Mapped[str] = mapped_column(
         String(6),
@@ -121,8 +120,9 @@ class LedgerEntry(Base):
             name="chk_ledger_entry_amount_positive",
         ),
         Index(
-            "idx_ledger_entries_account_created",
+            "idx_ledger_entries_account_created_seq",
             "account_id",
             created_at.desc(),
+            sequence_num.desc(),
         ),
     )

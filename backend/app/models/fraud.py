@@ -105,4 +105,10 @@ class FraudPrediction(Base):
             "risk_score",
             created_at.desc(),
         ),
+        Index(
+            "idx_fraud_pending_queue",
+            risk_score.desc(),
+            created_at.desc(),
+            postgresql_where=(review_status == "PENDING"),
+        ),
     )

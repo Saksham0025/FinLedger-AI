@@ -18,7 +18,7 @@ from sqlalchemy import create_engine, select, func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models import User, Customer, Account, TransferRequest, FinancialProduct, Investment
+from app.models import User, Customer, Account, TransferRequest, FinancialProduct, Investment, AuditLog
 from app.services.transfer_service import (
     TransferService,
     InsufficientFundsError,
@@ -26,6 +26,7 @@ from app.services.transfer_service import (
 from app.services.investment_service import InvestmentService
 from app.services.ledger_service import LedgerService
 from app.services.account_service import AccountService
+from app.services.audit_service import AuditService
 
 
 @pytest.fixture
@@ -763,3 +764,237 @@ def test_concurrent_identical_investment_requests_single_purchase(independent_en
             ).all()
         )
         assert len(transfers) == 1
+
+
+def test_multi_thread_concurrent_drain_race(independent_engine):
+    """Stress test: 5 concurrent threads competing to withdraw ₹30 from a ₹100 balance.
+
+    Total demanded = ₹150.00 against ₹100.00 available.
+    Guarantees:
+    - Exactly 3 transfers succeed (3 * 30 = ₹90.00).
+    - Exactly 2 transfers fail with InsufficientFundsError.
+    - Zero overdraft occurs (balance cannot become negative).
+    - Final source balance is exactly ₹10.00.
+    - Final destination balance is exactly ₹90.00.
+    - Ledger-derived balances match cached balances exactly.
+    """
+    with Session(independent_engine) as session:
+        user = User(
+            username=f"drain_race_{uuid.uuid4().hex[:8]}",
+            email=f"drain_{uuid.uuid4().hex[:8]}@example.com",
+            password_hash="$2b$12$samplepasswordhashforspeed",
+            role="CUSTOMER",
+            is_active=True,
+        )
+        session.add(user)
+        session.flush()
+
+        customer = Customer(
+            user_id=user.id,
+            full_name="Drain Race Customer",
+            kyc_status="VERIFIED",
+        )
+        session.add(customer)
+        session.flush()
+
+        src = Account(
+            customer_id=customer.id,
+            account_number=f"INR-DRN-SRC-{uuid.uuid4().hex[:6]}",
+            account_type="SAVINGS",
+            currency="INR",
+            cached_balance=Decimal("0.00"),
+            status="ACTIVE",
+            version=1,
+        )
+        dst = Account(
+            customer_id=customer.id,
+            account_number=f"INR-DRN-DST-{uuid.uuid4().hex[:6]}",
+            account_type="SAVINGS",
+            currency="INR",
+            cached_balance=Decimal("0.00"),
+            status="ACTIVE",
+            version=1,
+        )
+        session.add_all([src, dst])
+        session.commit()
+
+        AccountService.deposit_opening_funds(
+            db=session,
+            account_id=src.id,
+            amount=Decimal("100.00"),
+            actor_user_id=user.id,
+        )
+        session.commit()
+
+        user_id = user.id
+        src_id = src.id
+        dst_id = dst.id
+
+    num_threads = 5
+    barrier = threading.Barrier(num_threads)
+    results = [None] * num_threads
+    exceptions = [None] * num_threads
+
+    def worker(idx: int):
+        with Session(independent_engine) as db:
+            barrier.wait()
+            try:
+                tx, is_replay = TransferService.execute_transfer(
+                    db=db,
+                    caller_user_id=user_id,
+                    idempotency_key=str(uuid.uuid4()),
+                    source_account_id=src_id,
+                    destination_account_id=dst_id,
+                    amount=Decimal("30.00"),
+                )
+                results[idx] = (tx.status, is_replay)
+            except Exception as e:
+                exceptions[idx] = e
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(num_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=15)
+
+    successes = sum(1 for r in results if r is not None and r[0] == "POSTED")
+    failures = sum(1 for e in exceptions if isinstance(e, InsufficientFundsError))
+
+    assert successes == 3, f"Expected 3 successes, got {successes}. Results: {results}"
+    assert failures == 2, f"Expected 2 InsufficientFundsErrors, got {failures}. Exceptions: {exceptions}"
+
+    with Session(independent_engine) as verify_db:
+        final_src = verify_db.get(Account, src_id)
+        final_dst = verify_db.get(Account, dst_id)
+
+        assert final_src.cached_balance == Decimal("10.00")
+        assert final_dst.cached_balance == Decimal("90.00")
+
+        # Verify double-entry ledger derived balances
+        assert LedgerService.get_derived_balance(verify_db, src_id) == Decimal("10.00")
+        assert LedgerService.get_derived_balance(verify_db, dst_id) == Decimal("90.00")
+
+
+def test_concurrent_forced_failure_with_audit_persistence(independent_engine):
+    """Verify that a worker failing mid-transaction rolls back financial state
+    while preserving its audit log, without corrupting concurrent successful workers.
+    """
+    with Session(independent_engine) as session:
+        user = User(
+            username=f"audit_race_{uuid.uuid4().hex[:8]}",
+            email=f"audit_{uuid.uuid4().hex[:8]}@example.com",
+            password_hash="$2b$12$samplepasswordhashforspeed",
+            role="CUSTOMER",
+            is_active=True,
+        )
+        session.add(user)
+        session.flush()
+
+        customer = Customer(
+            user_id=user.id,
+            full_name="Audit Failure Race Customer",
+            kyc_status="VERIFIED",
+        )
+        session.add(customer)
+        session.flush()
+
+        src = Account(
+            customer_id=customer.id,
+            account_number=f"INR-AFAIL-SRC-{uuid.uuid4().hex[:6]}",
+            account_type="SAVINGS",
+            currency="INR",
+            cached_balance=Decimal("0.00"),
+            status="ACTIVE",
+            version=1,
+        )
+        dst = Account(
+            customer_id=customer.id,
+            account_number=f"INR-AFAIL-DST-{uuid.uuid4().hex[:6]}",
+            account_type="SAVINGS",
+            currency="INR",
+            cached_balance=Decimal("0.00"),
+            status="ACTIVE",
+            version=1,
+        )
+        session.add_all([src, dst])
+        session.commit()
+
+        AccountService.deposit_opening_funds(
+            db=session,
+            account_id=src.id,
+            amount=Decimal("5000.00"),
+            actor_user_id=user.id,
+        )
+        session.commit()
+
+        user_id = user.id
+        src_id = src.id
+        dst_id = dst.id
+
+    barrier = threading.Barrier(2)
+    exceptions = [None, None]
+    results = [None, None]
+
+    # Worker 1: Attempts transfer with amount exceeding balance (forced financial rejection)
+    def worker_fail():
+        with Session(independent_engine) as db:
+            barrier.wait()
+            try:
+                TransferService.execute_transfer(
+                    db=db,
+                    caller_user_id=user_id,
+                    idempotency_key=str(uuid.uuid4()),
+                    source_account_id=src_id,
+                    destination_account_id=dst_id,
+                    amount=Decimal("999999.00"),  # Insufficient funds
+                )
+            except Exception as e:
+                exceptions[0] = e
+
+    # Worker 2: Concurrent valid transfer of ₹500
+    def worker_success():
+        with Session(independent_engine) as db:
+            barrier.wait()
+            try:
+                tx, is_replay = TransferService.execute_transfer(
+                    db=db,
+                    caller_user_id=user_id,
+                    idempotency_key=str(uuid.uuid4()),
+                    source_account_id=src_id,
+                    destination_account_id=dst_id,
+                    amount=Decimal("500.00"),
+                )
+                results[1] = tx.status
+            except Exception as e:
+                exceptions[1] = e
+
+    t1 = threading.Thread(target=worker_fail)
+    t2 = threading.Thread(target=worker_success)
+
+    t1.start()
+    t2.start()
+    t1.join(timeout=10)
+    t2.join(timeout=10)
+
+    assert isinstance(exceptions[0], InsufficientFundsError)
+    assert exceptions[1] is None
+    assert results[1] == "POSTED"
+
+    with Session(independent_engine) as verify_db:
+        final_src = verify_db.get(Account, src_id)
+        final_dst = verify_db.get(Account, dst_id)
+
+        # Only Worker 2's ₹500 was debited: 5000 - 500 = 4500.00
+        assert final_src.cached_balance == Decimal("4500.00")
+        assert final_dst.cached_balance == Decimal("500.00")
+
+        # Worker 1's failure audit record is preserved via independent transaction
+        failed_audits = list(
+            verify_db.scalars(
+                select(AuditLog).where(
+                    AuditLog.actor_user_id == user_id,
+                    AuditLog.action == "TRANSFER_FAILED",
+                )
+            ).all()
+        )
+        assert len(failed_audits) >= 1

@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 from datetime import datetime
 from typing import TYPE_CHECKING
-from sqlalchemy import String, Numeric, DateTime, ForeignKey, CheckConstraint, UniqueConstraint, Text, func
+from sqlalchemy import String, Numeric, DateTime, ForeignKey, CheckConstraint, UniqueConstraint, Text, Index, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
@@ -123,5 +123,10 @@ class TransferRequest(Base):
         CheckConstraint(
             "status IN ('PENDING', 'POSTED', 'FAILED', 'REVERSED')",
             name="chk_transfers_status_valid",
+        ),
+        Index(
+            "idx_transfers_status_created",
+            "status",
+            created_at.desc(),
         ),
     )
