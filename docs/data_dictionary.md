@@ -75,9 +75,12 @@ Master transfer record tracking idempotency keys, parameters, and lifecycle stat
 | `created_at` | `TIMESTAMPTZ` | No | `NOW()` | Timestamp of initial submission |
 | `posted_at` | `TIMESTAMPTZ` | Yes | `NULL` | Timestamp of successful ledger commit |
 
-**Table Constraints**:
+**Table Constraints & Indexes**:
 - `UNIQUE (source_user_id, idempotency_key)`: Scoped customer idempotency.
 - `CHECK (source_account_id <> destination_account_id)`: Disallows transfer to identical account.
+- Index: `idx_transfers_status_created (status, created_at DESC)`: Optimizes staff & audit chronological status search.
+- Index: `ix_transfer_requests_source_account_id (source_account_id)`.
+- Index: `ix_transfer_requests_destination_account_id (destination_account_id)`.
 
 ---
 
@@ -101,14 +104,14 @@ Immutable double-entry posting legs (DEBIT or CREDIT). Strictly append-only.
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | No | `gen_random_uuid()` | **Primary Key** |
 | `transaction_id` | `UUID` | No | — | **Foreign Key** $\to$ `ledger_transactions(id)` (`ON DELETE RESTRICT`), Indexed |
-| `account_id` | `UUID` | No | — | **Foreign Key** $\to$ `accounts(id)` (`ON DELETE RESTRICT`), Indexed |
+| `account_id` | `UUID` | No | — | **Foreign Key** $\to$ `accounts(id)` (`ON DELETE RESTRICT`) |
 | `entry_type` | `VARCHAR(6)` | No | — | `CHECK (entry_type IN ('DEBIT', 'CREDIT'))` |
 | `amount` | `NUMERIC(15, 2)` | No | — | `CHECK (amount > 0.00)` |
 | `sequence_num` | `SMALLINT` | No | — | Order of leg execution within transaction |
 | `created_at` | `TIMESTAMPTZ` | No | `NOW()` | Timestamp of entry posting |
 
 **Indexes & Triggers**:
-- Index: `idx_ledger_entries_account_created (account_id, created_at DESC)`.
+- Index: `idx_ledger_entries_account_created_seq (account_id, created_at DESC, sequence_num DESC)`: Aligns with paginated ledger history query sort order, eliminating quicksort overhead.
 - Trigger: `trg_verify_ledger_balance` (`CONSTRAINT TRIGGER AFTER INSERT OR UPDATE DEFERRABLE INITIALLY DEFERRED FOR EACH ROW`) asserting $\sum \text{Debits} - \sum \text{Credits} = 0$.
 - Trigger: `trg_immutable_ledger_entries` (`BEFORE UPDATE OR DELETE`) raising exception.
 
@@ -142,10 +145,10 @@ Advisory fraud scores, explainability snapshots, and staff triage status.
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | No | `gen_random_uuid()` | **Primary Key** |
 | `transfer_request_id` | `UUID` | No | — | **Foreign Key** $\to$ `transfer_requests(id)` (`ON DELETE RESTRICT`), **Unique** |
-| `model_version` | `VARCHAR(30)` | No | — | Model identifier (e.g. `heuristic_rules_v1`, `random_forest_v1`) |
+| `model_version` | `VARCHAR(30)` | No | — | Model identifier (e.g. `rf-v1.0.0`) |
 | `risk_score` | `NUMERIC(5, 4)` | No | — | `CHECK (risk_score >= 0.0000 AND risk_score <= 1.0000)` |
 | `decision` | `VARCHAR(20)` | No | — | `CHECK (decision IN ('LOW_RISK', 'MEDIUM_RISK', 'HIGH_RISK'))` |
-| `rule_flags` | `JSONB` | No | `'[]'::jsonb` | Triggered rule codes (e.g. `["VELOCITY_EXCEEDED"]`) |
+| `rule_flags` | `JSONB` | No | `'[]'::jsonb` | Triggered rule codes (e.g. `["RULE_VELOCITY_BURST"]`) |
 | `feature_snapshot` | `JSONB` | No | `'{}'::jsonb` | Key feature values at time of transaction |
 | `explanation` | `TEXT` | No | — | Human-readable explanation for staff investigators |
 | `review_status` | `VARCHAR(20)` | No | `'PENDING'` | `CHECK (review_status IN ('PENDING', 'CLEARED', 'CONFIRMED_FRAUD', 'ESCALATED'))`, Indexed |
@@ -156,6 +159,7 @@ Advisory fraud scores, explainability snapshots, and staff triage status.
 
 **Indexes**:
 - Index: `idx_fraud_pending_risk (risk_score, created_at DESC)`.
+- Index: `idx_fraud_pending_queue (risk_score DESC, created_at DESC) WHERE review_status = 'PENDING'`: Partial index targeting active triage queue.
 
 ---
 

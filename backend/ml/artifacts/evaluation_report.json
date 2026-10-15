@@ -1,5 +1,5 @@
 {
-  "evaluation_timestamp": "2026-10-11T16:28:16.884522+00:00",
+  "evaluation_timestamp": "2026-10-15T07:10:53.956351+00:00",
   "disclaimer": "ACADEMIC DISCLAIMER: This evaluation was conducted strictly on synthetic banking transaction data. The metrics reflect performance on simulated distributions and ground-truth injected scenarios, and DO NOT represent validated real-world fraud detection efficacy or generalizability to actual financial traffic.",
   "test_dataset": {
     "total_samples": 1500,

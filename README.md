@@ -1,2 +1,256 @@
-# -FinLedger-AI
-FinLedger-AI is a full-stack system built on a relational database (PostgreSQL). Customers hold accounts, transfer funds, and invest in a catalogue of financial products, while staff manage compliance and reporting. 
+# FinLedger-AI: Auditable Financial Ledger & AI Fraud Detection System
+
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7+-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4+-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+An academic capstone project demonstrating enterprise Database Management System (DBMS) principles, double-entry ledger accounting, transaction concurrency control, and transparent machine-learning-assisted fraud triage.
+
+---
+
+## 1. Project Overview & Academic Purpose
+
+FinLedger-AI is designed from first principles to reflect real-world core banking and auditable transaction processing. It rejects frontend mock prototypes and simplistic CRUD architectures:
+
+- **Relational DBMS as the Sole Source of Truth**: Financial integrity is maintained by PostgreSQL 16+ constraints, transactional isolation, and database triggers.
+- **Double-Entry Accounting Invariant**: Every monetary event creates strictly balanced multi-row legs ($\sum \text{Debits} == \sum \text{Credits}$). Money is never manufactured via an arbitrary SQL `UPDATE` on balances.
+- **Append-Only Immutability**: Committed ledger entries and audit events cannot be modified or deleted, enforced by PostgreSQL `BEFORE UPDATE OR DELETE` triggers.
+- **Deterministic Concurrency Control**: Transfers acquire row locks in canonical ascending primary key order (`SELECT ... ORDER BY id FOR UPDATE`), eliminating deadlocks and double-spending race conditions.
+- **Separation of Financial Execution and AI**: Machine learning and rule engines are strictly **advisory**. AI produces risk scores, feature attributions, and triage alerts for human staff review; it never alters balances, rejects transfers, or freezes accounts autonomously.
+
+---
+
+## 2. Approved Technology Stack
+
+| Layer | Technology | Key Modules & Purpose |
+| :--- | :--- | :--- |
+| **Backend** | Python 3.12, FastAPI, Pydantic v2 | High-throughput asynchronous REST API, strict request/response validation |
+| **Database** | PostgreSQL 16+ | ACID transactions, deferrable constraint triggers, row-level locking |
+| **ORM & Migrations** | SQLAlchemy 2.0, Alembic | Mapped declarative models, transactional DDL migrations |
+| **Security & Auth** | Argon2id / bcrypt, PyJWT | Role-Based Access Control (Customer, Staff, Admin), 60-min JWT expiry |
+| **Data Science & ML** | scikit-learn, NumPy, pandas | Random Forest classifier, heuristic rule baseline, explainability snapshots |
+| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS | High-integrity customer & staff dashboards, reactive modals, responsive UI |
+| **Testing & Verification**| pytest, Vitest, Playwright | Real PostgreSQL test fixtures, concurrency race tests, component test suites |
+
+---
+
+## 3. Architecture & Core Financial Invariants
+
+```
+               +--------------------------------------------------+
+               |       React 19 + TypeScript Customer & Staff UI   |
+               +--------------------------------------------------+
+                                        | (HTTPS / JSON)
+                                        v
+               +--------------------------------------------------+
+               |             FastAPI Application Services         |
+               |  - AuthService (JWT & RBAC Dependencies)         |
+               |  - TransferService (Canonical Ascending Locking) |
+               |  - InvestmentService (Portfolio & Products)      |
+               |  - FraudService (Advisory ML Inference)          |
+               |  - AuditService (Independent Transaction Logger) |
+               +--------------------------------------------------+
+                                        | (SQLAlchemy 2.0 Session)
+                                        v
++-----------------------------------------------------------------------------------+
+|                           PostgreSQL 16+ Database Engine                          |
+|                                                                                   |
+|  [accounts]                      [transfer_requests]           [audit_logs]       |
+|  - NUMERIC(15,2) Balance         - Scoped Idempotency Key      - Append-Only Log  |
+|  - CHECK (cached_balance >= 0)   - Canonical Request Hash      - Immutable Trigger|
+|         ^                               |                                         |
+|         |                               v                                         |
+|  [ledger_entries] <------------ [ledger_transactions]     [fraud_predictions]     |
+|  - Balanced Legs (Debit/Credit) - Header Record           - Advisory Scores       |
+|  - trg_verify_ledger_balance    - 1:1 with Transfer       - PENDING Triage Queue  |
+|  - trg_immutable_ledger_entries                                                   |
++-----------------------------------------------------------------------------------+
+```
+
+### Non-Negotiable Invariants:
+1. **Money Representation**: `NUMERIC(15, 2)` across all balances, amounts, and ledger legs in PostgreSQL; `decimal.Decimal` in Python. Floating-point numbers are strictly forbidden. Denominated in **INR** only.
+2. **Double-Entry Legs**: Customer accounts are liabilities: Debits reduce balance; Credits increase balance. Initial funds are deposited against an internal clearing account (`INR-SYS-CLEARING`).
+3. **Database Constraint Trigger**: `trg_verify_ledger_balance` (`DEFERRABLE INITIALLY DEFERRED`) verifies $\sum \text{Debits} - \sum \text{Credits} = 0$ at transaction commit.
+4. **Scoped Idempotency**: Verified against `(source_user_id, idempotency_key)` and SHA-256 payload hash. Retries return cached 200/201 responses; key reuse with altered payloads returns `409 Conflict`.
+5. **Independent Audit Persistence**: If a financial transfer fails, its financial transaction is rolled back completely (0 funds deducted), while its audit failure record (`TRANSFER_FAILED`) is committed in an independent transaction.
+
+---
+
+## 4. Local Installation & Developer Setup
+
+### Prerequisites
+- **Operating System**: Windows 10/11 (or Linux/macOS)
+- **Python**: 3.12+ 64-bit
+- **Node.js**: v20+ and npm v10+
+- **PostgreSQL**: 16+ running locally on port `5432`
+
+---
+
+### Step 1: Clone the Repository
+```powershell
+git clone https://github.com/Saksham0025/-FinLedger-AI.git
+cd -FinLedger-AI
+```
+
+---
+
+### Step 2: Configure Environment Variables
+Copy the example environment configuration:
+```powershell
+cp .env.example .env
+```
+Ensure `.env` contains valid local database credentials (never commit `.env`):
+```ini
+ENVIRONMENT=development
+DEBUG=True
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_local_postgres_password
+DB_NAME=finledger
+DB_TEST_NAME=finledger_test
+SECRET_KEY=generate_a_secure_random_64_character_hex_key
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+CLEARING_ACCOUNT_NUMBER=INR-SYS-CLEARING
+```
+
+---
+
+### Step 3: Backend Setup & Database Migrations
+Create and activate the Python virtual environment:
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r backend/requirements.txt
+```
+
+Run Alembic migrations to build the complete relational schema:
+```powershell
+cd backend
+..\.venv\Scripts\alembic.exe upgrade head
+```
+
+Seed demonstration accounts (Customer, Staff, Admin) and financial products:
+```powershell
+..\.venv\Scripts\python.exe scripts/seed_users.py
+..\.venv\Scripts\python.exe scripts/seed_products.py
+```
+
+---
+
+### Step 4: Frontend Setup
+In a new terminal window:
+```powershell
+cd frontend
+npm install
+npm run build
+```
+
+---
+
+### Step 5: Start Development Servers
+
+**Start FastAPI Backend**:
+```powershell
+# From workspace root
+.\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+```
+- Swagger Interactive Documentation: [http://127.0.0.1:8000/api/v1/docs](http://127.0.0.1:8000/api/v1/docs)
+- Health Check: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+
+**Start React Frontend**:
+```powershell
+# From frontend directory
+cd frontend
+npm run dev
+```
+- Frontend Portal: [http://localhost:5173](http://localhost:5173)
+
+---
+
+## 5. Demonstration Accounts
+
+| Role | Username | Password | Profile Details & Permitted Actions |
+| :--- | :--- | :--- | :--- |
+| **Customer** | `rahul_sharma` | `Password123!` | Primary Savings Account, transfers, simulated deposits, investment purchases |
+| **Staff** | `priya_investigator` | `Password123!` | Compliance triage queue, fraud alert forensic review, volume reporting |
+| **Admin** | `admin_system` | `Password123!` | System administration, full ledger reconciliation audits, product catalog |
+
+---
+
+## 6. Verification & Test Execution
+
+### 1. Full Backend Test Suite (127 Tests)
+```powershell
+cd backend
+..\.venv\Scripts\pytest.exe -v
+```
+*Expected Outcome:* **127 passed, 1 warning** (100% pass rate).
+
+### 2. Concurrency Race & Overspending Suite (8 Tests)
+```powershell
+cd backend
+..\.venv\Scripts\pytest.exe tests/test_concurrency.py -v
+```
+*Includes:* Multi-threaded competing withdrawal drain race (5 concurrent threads), bi-directional transfer deadlock prevention, concurrent investment provisioning.
+
+### 3. Frontend Unit & Component Tests (14 Tests)
+```powershell
+cd frontend
+npm test
+```
+*Expected Outcome:* **4 test files passed, 14 passed** (100% pass rate).
+
+### 4. Double-Entry Balance Reconciliation Audits
+```powershell
+cd backend
+# Reconcile development database
+..\.venv\Scripts\python.exe scripts/reconcile_ledger.py
+
+# Reconcile test database
+..\.venv\Scripts\python.exe scripts/reconcile_ledger.py --test
+```
+*Expected Outcome:* **0 discrepancies, Global Net Ledger Delta: INR 0.00**.
+
+### 5. Machine Learning Fraud Evaluation Benchmark
+```powershell
+cd backend
+..\.venv\Scripts\python.exe ml/evaluate.py
+```
+*Expected Outcome:* Evaluates Random Forest classifier and rule-based baseline over 1,500 test transactions with academic synthetic disclaimer.
+
+### 6. Phase 7 DBMS Performance Benchmark Profiling
+```powershell
+cd backend
+..\.venv\Scripts\python.exe scripts/benchmark_dbms.py --db-name finledger_bench --run
+```
+*Expected Outcome:* Executes `EXPLAIN (ANALYZE, BUFFERS)` over cold/warm runs profiling 5 representative workloads.
+
+---
+
+## 7. College Demonstration Script
+
+A dedicated, step-by-step examination script is provided in [docs/college_demonstration_guide.md](file:///c:/Users/Saksham%20Raj/Downloads/bin/Game,Project/Projects/FinLedger-AI/docs/college_demonstration_guide.md):
+
+1. **Customer Registration & Auto-Provisioning**: Zero-balance savings account opened without fabricated money.
+2. **Simulated Opening Deposit**: Double-entry balanced credit on customer account and debit on clearing account.
+3. **Peer-to-Peer Transfer**: Atomic transfer execution and digital receipt issuance.
+4. **Idempotency Replay**: Identical request retransmission returns cached HTTP 200 without duplicate money movement.
+5. **Competing Withdrawals**: Overspending rejected with HTTP 400; independent audit failure logged.
+6. **Synthetic Suspicious Transaction**: Advisory ML inference triggering `RULE_STRUCTURING` alert.
+7. **Staff Investigation & Forensic Review**: Human-in-the-loop triage with mandatory forensic notes and audit record.
+8. **Ledger Immutability Defense**: PostgreSQL trigger blocks raw SQL `UPDATE` / `DELETE` on posted entries.
+9. **System Balance Reconciliation**: System-wide mathematical check asserting net delta equals INR 0.00.
+10. **DBMS Query Plan Evaluation**: Query plan demonstration proving 105x speedup on compliance searches.
+
+---
+
+## 8. Academic Disclaimers & Known Limitations
+
+1. **Synthetic Data Disclaimer**: All machine learning metrics (Precision, Recall, ROC-AUC) were computed against synthetic banking transaction distributions. They demonstrate pipeline mechanics, feature engineering, and explainability workflows, and do not represent validated real-world fraud detection efficacy.
+2. **Query Planner Trade-Off (Workload 2A)**: As documented in [docs/dbms_experiments.md](file:///c:/Users/Saksham%20Raj/Downloads/bin/Game,Project/Projects/FinLedger-AI/docs/dbms_experiments.md), queries combining sparse per-account filters with `LIMIT 50` can experience planner discounting under composite status indexes. Single-customer transaction history should continue relying on dedicated account index lookups.
+3. **Simulated Investments**: Financial product yields and mutual fund values are simulated for educational demonstration.
