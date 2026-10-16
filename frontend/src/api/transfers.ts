@@ -33,4 +33,15 @@ export const transfersApi = {
     const res = await apiClient.get<TransferRequest>(`/api/v1/transfers/${id}`);
     return res.data;
   },
+
+  previewTransfer: async (
+    payload: { source_account_id: string; destination_account_id: string; amount: string | number }
+  ): Promise<import('../types/api').PayeePreviewResponse> => {
+    const res = await apiClient.post<import('../types/api').PayeePreviewResponse>(
+      '/api/v1/transfers/preview',
+      payload
+    );
+    return res.data;
+  },
 };
+

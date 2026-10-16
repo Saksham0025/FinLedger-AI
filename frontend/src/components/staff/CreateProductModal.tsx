@@ -5,7 +5,6 @@ import { ErrorBanner } from '../common/ErrorBanner';
 import { FinancialProduct, ProductType } from '../../types/api';
 import { productsApi } from '../../api/products';
 import { getErrorMessage } from '../../api/client';
-import { Plus } from 'lucide-react';
 
 interface CreateProductModalProps {
   isOpen: boolean;
@@ -81,9 +80,9 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
     >
       {error && <ErrorBanner message={error} className="mb-4" />}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4 font-sans">
         <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+          <label className="block text-[11px] font-bold text-sage-300 uppercase tracking-wider mb-1.5 font-mono">
             Product Display Name
           </label>
           <input
@@ -91,14 +90,14 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. 1-Year High Yield Fixed Deposit"
-            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full bg-forensic-900 border border-forensic-700 rounded-lg px-3.5 py-2 text-xs text-white placeholder:text-sage-400/60 focus:outline-none focus:border-forest-500 font-sans"
             required
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-[11px] font-bold text-sage-300 uppercase tracking-wider mb-1.5 font-mono">
               Product Code
             </label>
             <input
@@ -106,19 +105,19 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="e.g. FD-12M-PREM"
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono uppercase text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full bg-forensic-900 border border-forensic-700 rounded-lg px-3.5 py-2 text-xs font-mono uppercase text-white placeholder:text-sage-400/60 focus:outline-none focus:border-forest-500"
               required
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-[11px] font-bold text-sage-300 uppercase tracking-wider mb-1.5 font-mono">
               Category
             </label>
             <select
               value={productType}
               onChange={(e) => setProductType(e.target.value as ProductType)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full bg-forensic-900 border border-forensic-700 rounded-lg px-3.5 py-2 text-xs text-white focus:outline-none focus:border-forest-500 font-sans"
             >
               <option value="FIXED_DEPOSIT">Fixed Deposit</option>
               <option value="RECURRING_DEPOSIT">Recurring Deposit</option>
@@ -130,7 +129,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
 
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-[11px] font-bold text-sage-300 uppercase tracking-wider mb-1.5 font-mono">
               Yield Rate (% p.a.)
             </label>
             <input
@@ -139,52 +138,46 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
               value={annualYieldRate}
               onChange={(e) => setAnnualYieldRate(e.target.value)}
               placeholder="7.50"
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm font-mono text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full bg-forensic-900 border border-forensic-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-forest-500"
               required
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-[11px] font-bold text-sage-300 uppercase tracking-wider mb-1.5 font-mono">
               Min Amount (₹)
             </label>
             <input
               type="number"
-              step="1000"
+              step="0.01"
               value={minAmount}
               onChange={(e) => setMinAmount(e.target.value)}
-              placeholder="10000"
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm font-mono text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              placeholder="10000.00"
+              className="w-full bg-forensic-900 border border-forensic-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-forest-500"
               required
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-[11px] font-bold text-sage-300 uppercase tracking-wider mb-1.5 font-mono">
               Term (Months)
             </label>
             <input
               type="number"
-              step="1"
               value={termMonths}
               onChange={(e) => setTermMonths(e.target.value)}
               placeholder="12"
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm font-mono text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full bg-forensic-900 border border-forensic-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-forest-500"
               required
             />
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 pt-2">
-          <Button variant="secondary" type="button" onClick={onClose}>
+        <div className="flex items-center justify-end gap-3 pt-3 border-t border-forensic-700">
+          <Button variant="outline" type="button" onClick={onClose} className="font-semibold">
             Cancel
           </Button>
-          <Button
-            variant="primary"
-            type="submit"
-            isLoading={isLoading}
-            leftIcon={<Plus className="w-4 h-4" />}
-          >
+          <Button variant="primary" type="submit" isLoading={isLoading} className="font-semibold shadow-xs">
             Create Product
           </Button>
         </div>

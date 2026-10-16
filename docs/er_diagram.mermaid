@@ -11,6 +11,15 @@ erDiagram
     FRAUD_PREDICTIONS ||--o| USERS : "reviewed_by"
     CUSTOMERS ||--o{ INVESTMENTS : "holds"
     FINANCIAL_PRODUCTS ||--o{ INVESTMENTS : "underlies"
+    ACCOUNTS ||--o{ PAYEE_EDGES : "sources"
+    ACCOUNTS ||--o{ PAYEE_EDGES : "destines"
+    CUSTOMERS ||--o{ SAVED_PAYEES : "saves"
+    FRAUD_PREDICTIONS ||--o{ INVESTIGATION_NOTES : "documents"
+    CUSTOMERS ||--o{ DISPUTES : "files"
+    TRANSFER_REQUESTS ||--o{ DISPUTES : "disputed_in"
+    DISPUTES ||--|{ CASE_EVENTS : "tracks"
+    ACCOUNTS ||--o{ GRAPH_FINDINGS : "detected_on"
+    USERS ||--o{ SIMULATION_RUNS : "runs"
 
     USERS {
         uuid id PK
@@ -132,3 +141,88 @@ erDiagram
         timestamptz maturity_date
         timestamptz created_at
     }
+
+    PAYEE_EDGES {
+        uuid id PK
+        uuid source_account_id FK
+        uuid destination_account_id FK
+        integer transfer_count
+        numeric total_amount
+        numeric avg_amount
+        timestamptz first_transfer_at
+        timestamptz last_transfer_at
+    }
+
+    SAVED_PAYEES {
+        uuid id PK
+        uuid customer_id FK
+        uuid account_id FK
+        varchar nickname
+        boolean is_verified
+        timestamptz created_at
+    }
+
+    INVESTIGATION_NOTES {
+        uuid id PK
+        uuid fraud_prediction_id FK
+        uuid staff_user_id FK
+        varchar note_type "OBSERVATION | HYPOTHESIS | CORROBORATING_EVIDENCE | RESOLUTION_RATIONALE"
+        text content
+        timestamptz created_at
+    }
+
+    DISPUTES {
+        uuid id PK
+        uuid customer_id FK
+        uuid transfer_request_id FK
+        varchar category "UNAUTHORIZED | SUSPICIOUS_PAYEE | AMOUNT_DISCREPANCY | PROCESSING_DELAY | OTHER"
+        text description
+        varchar status "OPEN | INVESTIGATING | NEEDS_INFO | RESOLVED | REJECTED"
+        uuid assigned_staff_id FK
+        text resolution_notes
+        timestamptz resolved_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    CASE_EVENTS {
+        uuid id PK
+        uuid dispute_id FK
+        uuid actor_user_id FK
+        varchar actor_role "CUSTOMER | STAFF | ADMIN"
+        varchar event_type "DISPUTE_OPENED | STATUS_CHANGE | CUSTOMER_RESPONSE | RESOLVED | REJECTED"
+        varchar from_status
+        varchar to_status
+        text notes
+        jsonb metadata_snapshot
+        timestamptz created_at
+    }
+
+    GRAPH_FINDINGS {
+        uuid id PK
+        varchar pattern_type "FAN_IN | FAN_OUT | RAPID_PASS_THROUGH | MULTI_HOP_LAYERING | CIRCULAR_WASH | BURST_VELOCITY"
+        varchar pattern_version
+        varchar severity "INFO | SUSPICIOUS | CRITICAL"
+        numeric heuristic_score
+        uuid primary_account_id FK
+        timestamptz time_window_start
+        timestamptz time_window_end
+        jsonb evidence_json
+        text explanation
+        varchar review_status "PENDING | CLEARED | CONFIRMED_FRAUD | ESCALATED"
+        uuid reviewed_by_user_id FK
+        text review_notes
+        timestamptz reviewed_at
+        timestamptz created_at
+    }
+
+    SIMULATION_RUNS {
+        uuid id PK
+        varchar scenario_name
+        integer seed
+        integer sample_size
+        jsonb summary_metrics
+        uuid executed_by_user_id FK
+        timestamptz created_at
+    }
+

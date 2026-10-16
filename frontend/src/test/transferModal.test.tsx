@@ -2,6 +2,21 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { TransferModal } from '../components/customer/TransferModal';
 import { Account } from '../types/api';
+import { transfersApi } from '../api/transfers';
+
+vi.spyOn(transfersApi, 'previewTransfer').mockResolvedValue({
+  source_account_id: '11111111-1111-1111-1111-111111111111',
+  destination_account_id: '33333333-3333-3333-3333-333333333333',
+  recipient_legal_name: 'Aarav Sharma',
+  masked_account_number: 'ACC-SAV-••••77',
+  intended_amount: '15000.00',
+  currency: 'INR',
+  is_first_time_recipient: true,
+  total_historical_transfers: 0,
+  validation_status: 'VERIFIED_ELIGIBLE',
+  advisory_warnings: ['First-Time Recipient: You have not transferred funds to this beneficiary previously.'],
+  verification_provider: 'Internal FinLedger-AI Account Holder Verification',
+});
 
 const mockAccounts: Account[] = [
   {
@@ -91,6 +106,10 @@ describe('TransferModal Component', () => {
       expect(screen.getByText(/Confirm & Post Transfer/i)).toBeInTheDocument();
       expect(screen.getByText(/Idempotency Key/i)).toBeInTheDocument();
       expect(screen.getByText(/₹15,000.00/i)).toBeInTheDocument();
+      expect(screen.getByText(/PayeeGuard Verification/i)).toBeInTheDocument();
+      expect(screen.getByText(/Aarav Sharma/i)).toBeInTheDocument();
+      expect(screen.getByText(/ACC-SAV-••••77/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/First-Time Recipient/i).length).toBeGreaterThanOrEqual(1);
     });
   });
 });

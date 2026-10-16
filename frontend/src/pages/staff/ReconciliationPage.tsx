@@ -7,6 +7,7 @@ import { DateDisplay } from '../../components/common/DateDisplay';
 import { ErrorBanner } from '../../components/common/ErrorBanner';
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
 import { EmptyState } from '../../components/common/EmptyState';
+import { PageHeader } from '../../components/common/PageHeader';
 import { ReconciliationReport } from '../../types/api';
 import { auditApi } from '../../api/audit';
 import { getErrorMessage } from '../../api/client';
@@ -36,37 +37,32 @@ export const ReconciliationPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
-            System Ledger Reconciliation Audit
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            System-wide automated audit asserting cached_balance == sum(credits) - sum(debits)
-          </p>
-        </div>
-
-        <Button
-          variant="primary"
-          size="md"
-          onClick={runReconciliation}
-          isLoading={isLoading}
-          leftIcon={<RefreshCw className="w-4 h-4" />}
-        >
-          Run Live Audit
-        </Button>
-      </div>
+      <PageHeader
+        title="System Ledger Reconciliation Audit"
+        description="Automated mathematical ledger proof asserting cached_balance == sum(credits) - sum(debits) across all system accounts"
+        action={
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={runReconciliation}
+            isLoading={isLoading}
+            leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+          >
+            Run Live Audit
+          </Button>
+        }
+      />
 
       {error && <ErrorBanner message={error} onRetry={runReconciliation} />}
 
       {/* Reconciliation Invariant Explanation */}
-      <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-300 flex items-start gap-3">
+      <div className="p-4 rounded-xl bg-forensic-850 border border-forensic-700 text-xs text-sage-200 flex items-start gap-3 shadow-sm">
         <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <h4 className="font-semibold text-slate-200">
+          <h4 className="font-bold text-white font-mono">
             Closed-Ledger Conservation Law
           </h4>
-          <p className="text-slate-400 leading-relaxed text-[11px]">
+          <p className="text-sage-300 leading-relaxed text-[11px]">
             In a double-entry banking ledger, money cannot be created or destroyed. The sum of all customer
             liabilities plus the internal clearing account (<code className="text-emerald-400 font-mono">INR-SYS-CLEARING</code>)
             must strictly equal zero (<code className="text-emerald-400 font-mono">Global Net Ledger Delta == INR 0.00</code>).
@@ -79,9 +75,9 @@ export const ReconciliationPage: React.FC = () => {
         <LoadingSkeleton rows={3} />
       ) : report ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card glow={report.is_balanced ? 'emerald' : 'rose'}>
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">Audit Integrity</span>
+          <Card variant="forensic">
+            <div className="flex items-center justify-between text-sage-400 mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider font-mono">Audit Integrity</span>
               {report.is_balanced ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               ) : (
@@ -89,46 +85,46 @@ export const ReconciliationPage: React.FC = () => {
               )}
             </div>
             <div className="mt-1">
-              <Badge variant={report.is_balanced ? 'success' : 'danger'} size="md">
+              <Badge variant={report.is_balanced ? 'evergreen' : 'danger'} size="md">
                 {report.is_balanced ? 'Zero Discrepancies' : `${report.discrepancy_count} Mismatch(es)`}
               </Badge>
             </div>
-            <p className="text-[11px] text-slate-400 mt-2 font-mono">
+            <p className="text-[11px] text-sage-400 mt-2 font-mono">
               Audited: <DateDisplay date={report.reconciled_at} />
             </p>
           </Card>
 
-          <Card>
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">Audited Accounts</span>
-              <Scale className="w-4 h-4 text-cyan-400" />
+          <Card variant="forensic">
+            <div className="flex items-center justify-between text-sage-400 mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider font-mono">Audited Accounts</span>
+              <Scale className="w-4 h-4 text-emerald-400" />
             </div>
-            <span className="text-3xl font-extrabold text-slate-100 font-mono">
+            <span className="text-2xl font-bold text-white font-mono tabular-nums">
               {report.total_accounts_checked}
             </span>
-            <p className="text-[11px] text-slate-400 mt-2 font-mono">
+            <p className="text-[11px] text-sage-400 mt-2 font-mono">
               All active customer & clearing accounts
             </p>
           </Card>
 
-          <Card>
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">System Clearing Balance</span>
-              <Scale className="w-4 h-4 text-slate-400" />
+          <Card variant="forensic">
+            <div className="flex items-center justify-between text-sage-400 mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider font-mono">System Clearing Balance</span>
+              <Scale className="w-4 h-4 text-sage-300" />
             </div>
-            <CurrencyDisplay amount={report.system_clearing_balance} size="2xl" colored />
-            <p className="text-[11px] text-slate-400 mt-2 font-mono">
+            <CurrencyDisplay amount={report.system_clearing_balance} size="xl" colored />
+            <p className="text-[11px] text-sage-400 mt-2 font-mono">
               INR-SYS-CLEARING internal ledger balance
             </p>
           </Card>
 
-          <Card glow="emerald">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">Global Net Ledger Delta</span>
+          <Card variant="forensic">
+            <div className="flex items-center justify-between text-sage-400 mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider font-mono">Global Net Ledger Delta</span>
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
             </div>
-            <CurrencyDisplay amount={report.global_net_ledger_delta} size="2xl" colored />
-            <p className="text-[11px] text-slate-400 mt-2 font-mono">
+            <CurrencyDisplay amount={report.global_net_ledger_delta} size="xl" colored />
+            <p className="text-[11px] text-sage-400 mt-2 font-mono">
               Customer Liabilities: <CurrencyDisplay amount={report.total_customer_liabilities} size="sm" />
             </p>
           </Card>
@@ -139,6 +135,7 @@ export const ReconciliationPage: React.FC = () => {
       <Card
         title="Discrepancy Investigation Register"
         subtitle="Accounts where cached balance deviates from sum of posted ledger entries"
+        variant="forensic"
       >
         {isLoading ? (
           <LoadingSkeleton rows={3} />
@@ -149,29 +146,29 @@ export const ReconciliationPage: React.FC = () => {
             description="Every account cached_balance matches its derived posted ledger sum exactly. Zero discrepancies."
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="text-[10px] uppercase text-rose-400 border-b border-rose-500/30 font-semibold tracking-wider">
+          <div className="overflow-x-auto rounded-lg border border-forensic-700">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="bg-forensic-900 text-[10px] uppercase text-rose-300 border-b border-forensic-700 font-bold tracking-wider">
                 <tr>
-                  <th className="pb-3 px-3">Account Number</th>
-                  <th className="pb-3 px-3">Account ID</th>
-                  <th className="pb-3 px-3 text-right">Cached Balance</th>
-                  <th className="pb-3 px-3 text-right">Derived Ledger Sum</th>
-                  <th className="pb-3 px-3 text-right">Discrepancy Delta</th>
+                  <th className="py-2.5 px-3">Account Number</th>
+                  <th className="py-2.5 px-3">Account ID</th>
+                  <th className="py-2.5 px-3 text-right">Cached Balance</th>
+                  <th className="py-2.5 px-3 text-right">Derived Ledger Sum</th>
+                  <th className="py-2.5 px-3 text-right">Discrepancy Delta</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
+              <tbody className="divide-y divide-forensic-750">
                 {report.discrepancies.map((item) => (
-                  <tr key={item.account_id} className="hover:bg-rose-500/5">
-                    <td className="py-3 px-3 font-bold text-slate-100">{item.account_number}</td>
-                    <td className="py-3 px-3 text-slate-400">{item.account_id}</td>
-                    <td className="py-3 px-3 text-right">
+                  <tr key={item.account_id} className="hover:bg-rose-500/10 transition-colors">
+                    <td className="py-3 px-3 font-bold text-white">{item.account_number}</td>
+                    <td className="py-3 px-3 text-sage-300">{item.account_id}</td>
+                    <td className="py-3 px-3 text-right tabular-nums">
                       <CurrencyDisplay amount={item.cached_balance} size="sm" />
                     </td>
-                    <td className="py-3 px-3 text-right">
+                    <td className="py-3 px-3 text-right tabular-nums">
                       <CurrencyDisplay amount={item.derived_balance} size="sm" />
                     </td>
-                    <td className="py-3 px-3 text-right text-rose-400 font-bold">
+                    <td className="py-3 px-3 text-right text-rose-400 font-bold tabular-nums">
                       <CurrencyDisplay amount={item.discrepancy} size="sm" colored sign="auto" />
                     </td>
                   </tr>

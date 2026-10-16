@@ -7,6 +7,7 @@ import { DateDisplay } from '../../components/common/DateDisplay';
 import { ErrorBanner } from '../../components/common/ErrorBanner';
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
 import { Modal } from '../../components/common/Modal';
+import { PageHeader } from '../../components/common/PageHeader';
 import { Account, LedgerEntry } from '../../types/api';
 import { accountsApi } from '../../api/accounts';
 import { getErrorMessage } from '../../api/client';
@@ -54,28 +55,23 @@ export const SystemAccountsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
-            System Accounts Explorer
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Universal relational database accounts browser &bull; Customer liabilities & clearing accounts
-          </p>
-        </div>
-
-        <Button
-          variant="secondary"
-          size="md"
-          onClick={fetchAccounts}
-          leftIcon={<RefreshCw className="w-4 h-4 text-slate-400" />}
-        >
-          Refresh Accounts
-        </Button>
-      </div>
+      <PageHeader
+        title="System Accounts Explorer"
+        description="Universal relational database accounts browser • Customer liabilities and system clearing accounts"
+        action={
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={fetchAccounts}
+            leftIcon={<RefreshCw className="w-3.5 h-3.5 text-stone-400" />}
+          >
+            Refresh Accounts
+          </Button>
+        }
+      />
 
       {/* Filter by Customer UUID */}
-      <div className="p-4 rounded-xl glass-panel">
+      <div className="p-4 rounded-xl bg-forensic-850 border border-forensic-700 shadow-sm">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -84,16 +80,16 @@ export const SystemAccountsPage: React.FC = () => {
           className="flex flex-col sm:flex-row gap-3"
         >
           <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-500" />
+            <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-sage-400" />
             <input
               type="text"
               value={customerFilter}
               onChange={(e) => setCustomerFilter(e.target.value)}
               placeholder="Filter by Customer UUID (e.g. 5a4b3c2d-1234-5678-9abc-def012345678)"
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-3.5 py-2 text-xs font-mono text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full bg-forensic-900 border border-forensic-700 rounded-lg pl-10 pr-3.5 py-2 text-xs font-mono text-white placeholder:text-sage-400/60 focus:outline-none focus:border-forest-500"
             />
           </div>
-          <Button variant="primary" type="submit" size="sm">
+          <Button variant="primary" type="submit" size="sm" className="font-semibold shadow-xs">
             Apply Filter
           </Button>
           {customerFilter && (
@@ -104,6 +100,7 @@ export const SystemAccountsPage: React.FC = () => {
                 setCustomerFilter('');
                 accountsApi.listAccounts().then(setAccounts).catch(() => {});
               }}
+              className="font-semibold"
             >
               Clear
             </Button>
@@ -117,43 +114,44 @@ export const SystemAccountsPage: React.FC = () => {
       <Card
         title={`All Registered Accounts (${accounts.length})`}
         subtitle="PostgreSQL accounts table records with cached balance version"
+        variant="forensic"
       >
         {isLoading ? (
           <LoadingSkeleton rows={5} />
         ) : accounts.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-400">
+          <div className="p-8 text-center text-xs text-sage-400 font-mono">
             No accounts found matching search criteria.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-lg border border-forensic-700">
             <table className="w-full text-left text-xs">
-              <thead className="text-[10px] uppercase text-slate-400 border-b border-slate-800 font-semibold tracking-wider">
+              <thead className="bg-forensic-900 text-[10px] uppercase text-sage-300 border-b border-forensic-700 font-bold tracking-wider font-mono">
                 <tr>
-                  <th className="pb-3 px-3">Account Number</th>
-                  <th className="pb-3 px-3">Type</th>
-                  <th className="pb-3 px-3">Customer Reference</th>
-                  <th className="pb-3 px-3 text-right">Cached Balance</th>
-                  <th className="pb-3 px-3 text-center">Version</th>
-                  <th className="pb-3 px-3 text-center">Status</th>
-                  <th className="pb-3 px-3 text-right">Actions</th>
+                  <th className="py-2.5 px-3">Account Number</th>
+                  <th className="py-2.5 px-3">Type</th>
+                  <th className="py-2.5 px-3">Customer Reference</th>
+                  <th className="py-2.5 px-3 text-right">Cached Balance</th>
+                  <th className="py-2.5 px-3 text-center">Version</th>
+                  <th className="py-2.5 px-3 text-center">Status</th>
+                  <th className="py-2.5 px-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
+              <tbody className="divide-y divide-forensic-750 font-mono">
                 {accounts.map((acc) => (
-                  <tr key={acc.id} className="hover:bg-slate-900/40">
+                  <tr key={acc.id} className="hover:bg-forensic-800/70 transition-colors">
                     <td className="py-3 px-3">
-                      <span className="font-bold text-slate-100 block">
+                      <span className="font-bold text-white block">
                         {acc.account_number}
                       </span>
-                      <span className="text-[10px] text-slate-500 truncate max-w-[150px] block">
+                      <span className="text-[10px] text-sage-400 truncate max-w-[150px] block">
                         ID: {acc.id}
                       </span>
                     </td>
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3 font-sans">
                       <Badge
                         variant={
                           acc.account_type === 'SAVINGS'
-                            ? 'success'
+                            ? 'evergreen'
                             : acc.account_type === 'INVESTMENT'
                             ? 'purple'
                             : acc.account_type === 'INTERNAL_CLEARING'
@@ -165,17 +163,17 @@ export const SystemAccountsPage: React.FC = () => {
                         {acc.account_type}
                       </Badge>
                     </td>
-                    <td className="py-3 px-3 text-slate-300 text-[11px] truncate max-w-[120px]">
+                    <td className="py-3 px-3 text-sage-200 text-[11px] truncate max-w-[120px]">
                       {acc.customer_id || 'SYSTEM'}
                     </td>
-                    <td className="py-3 px-3 text-right">
+                    <td className="py-3 px-3 text-right tabular-nums">
                       <CurrencyDisplay amount={acc.cached_balance} size="sm" colored />
                     </td>
-                    <td className="py-3 px-3 text-center text-slate-400 font-semibold">
+                    <td className="py-3 px-3 text-center text-sage-300 font-semibold tabular-nums">
                       v{acc.version}
                     </td>
                     <td className="py-3 px-3 text-center font-sans">
-                      <Badge variant={acc.status === 'ACTIVE' ? 'success' : 'danger'} size="sm">
+                      <Badge variant={acc.status === 'ACTIVE' ? 'evergreen' : 'danger'} size="sm">
                         {acc.status}
                       </Badge>
                     </td>
@@ -184,7 +182,8 @@ export const SystemAccountsPage: React.FC = () => {
                         variant="secondary"
                         size="sm"
                         onClick={() => handleInspectLedger(acc)}
-                        leftIcon={<FileText className="w-3.5 h-3.5" />}
+                        leftIcon={<FileText className="w-3.5 h-3.5 text-sage-300" />}
+                        className="text-xs font-semibold"
                       >
                         Ledger
                       </Button>
@@ -209,39 +208,39 @@ export const SystemAccountsPage: React.FC = () => {
           {isLoadingLedger ? (
             <LoadingSkeleton rows={4} />
           ) : ledgerEntries.length === 0 ? (
-            <p className="p-6 text-center text-xs text-slate-400">
+            <p className="p-6 text-center text-xs text-sage-400 font-mono">
               Zero ledger entries recorded for this account.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="text-[10px] uppercase text-slate-400 border-b border-slate-800 font-semibold tracking-wider">
+            <div className="overflow-x-auto border border-forensic-700 rounded-lg">
+              <table className="w-full text-left text-xs font-mono">
+                <thead className="bg-forensic-900 text-[10px] uppercase text-sage-300 border-b border-forensic-700 font-bold tracking-wider">
                   <tr>
-                    <th className="pb-2.5 px-2">Seq #</th>
-                    <th className="pb-2.5 px-2">Leg</th>
-                    <th className="pb-2.5 px-2">Transaction ID</th>
-                    <th className="pb-2.5 px-2 text-right">Amount</th>
-                    <th className="pb-2.5 px-2 text-right">Timestamp</th>
+                    <th className="py-2.5 px-3">Seq #</th>
+                    <th className="py-2.5 px-3">Leg</th>
+                    <th className="py-2.5 px-3">Transaction ID</th>
+                    <th className="py-2.5 px-3 text-right">Amount</th>
+                    <th className="py-2.5 px-3 text-right">Timestamp</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 font-mono">
+                <tbody className="divide-y divide-forensic-750">
                   {ledgerEntries.map((entry) => (
-                    <tr key={entry.id}>
-                      <td className="py-2.5 px-2 text-slate-400 font-bold">
+                    <tr key={entry.id} className="hover:bg-forensic-800/70 transition-colors">
+                      <td className="py-2.5 px-3 text-sage-400 font-bold tabular-nums">
                         #{entry.sequence_num}
                       </td>
-                      <td className="py-2.5 px-2">
+                      <td className="py-2.5 px-3 font-sans">
                         <Badge
-                          variant={entry.entry_type === 'CREDIT' ? 'success' : 'danger'}
+                          variant={entry.entry_type === 'CREDIT' ? 'evergreen' : 'danger'}
                           size="sm"
                         >
                           {entry.entry_type}
                         </Badge>
                       </td>
-                      <td className="py-2.5 px-2 text-slate-300 text-[11px] truncate max-w-[120px]">
+                      <td className="py-2.5 px-3 text-sage-200 text-[11px] truncate max-w-[120px]">
                         {entry.transaction_id}
                       </td>
-                      <td className="py-2.5 px-2 text-right">
+                      <td className="py-2.5 px-3 text-right tabular-nums">
                         <CurrencyDisplay
                           amount={entry.amount}
                           sign={entry.entry_type === 'CREDIT' ? 'plus' : 'minus'}
@@ -249,7 +248,7 @@ export const SystemAccountsPage: React.FC = () => {
                           size="sm"
                         />
                       </td>
-                      <td className="py-2.5 px-2 text-right">
+                      <td className="py-2.5 px-3 text-right text-sage-300">
                         <DateDisplay date={entry.created_at} />
                       </td>
                     </tr>
@@ -258,7 +257,7 @@ export const SystemAccountsPage: React.FC = () => {
               </table>
             </div>
           )}
-          <div className="mt-4 pt-3 border-t border-slate-800 flex justify-end">
+          <div className="mt-4 pt-3 border-t border-forensic-700 flex justify-end">
             <Button variant="primary" onClick={() => setInspectAccount(null)}>
               Close
             </Button>

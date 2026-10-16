@@ -18,8 +18,36 @@ from app.services.transfer_service import (
     TransferOwnershipError,
     AccountEligibilityError,
 )
+from app.schemas.transfer import TransferPreviewRequest, TransferPreviewResponse
+from app.services.payee_guard_service import PayeeGuardService, PayeeGuardError
 
 router = APIRouter(prefix="/transfers", tags=["Financial Transfers"])
+
+
+@router.post(
+    "/preview",
+    response_model=TransferPreviewResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Preview and verify recipient details before transfer confirmation (PayeeGuard)",
+)
+def preview_transfer(
+    data: TransferPreviewRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Authoritative pre-transfer beneficiary verification without moving funds."""
+    is_staff = current_user.role in ("STAFF", "ADMIN")
+    try:
+        return PayeeGuardService.preview_transfer(
+            db=db,
+            caller_user_id=current_user.id,
+            source_account_id=data.source_account_id,
+            destination_account_id=data.destination_account_id,
+            amount=data.amount,
+            is_staff=is_staff,
+        )
+    except PayeeGuardError as err:
+        raise HTTPException(status_code=err.status_code, detail=err.message)
 
 
 @router.post(

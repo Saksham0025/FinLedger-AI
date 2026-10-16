@@ -6,37 +6,79 @@ import { LogOut, User as UserIcon, Menu } from 'lucide-react';
 
 interface NavbarProps {
   onToggleSidebar?: () => void;
+  isStaffSection?: boolean;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, isStaffSection = false }) => {
   const { user, logout, isCustomer, isStaff } = useAuth();
 
   const roleVariant = isStaff ? 'purple' : isCustomer ? 'success' : 'neutral';
 
   return (
-    <header className="sticky top-0 z-30 w-full border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
-      <div className="flex items-center justify-between px-4 sm:px-6 h-16">
+    <header
+      className={`sticky top-0 z-30 w-full transition-colors ${
+        isStaffSection
+          ? 'bg-forensic-900 border-b border-forensic-700 text-slate-100'
+          : 'bg-paper-50 border-b border-eucalyptus-300 text-ink-900 shadow-xs'
+      }`}
+    >
+      <div className="flex items-center justify-between px-4 sm:px-6 h-14">
         <div className="flex items-center gap-3">
           {onToggleSidebar && (
             <button
               onClick={onToggleSidebar}
-              className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              className={`md:hidden p-1.5 rounded transition-colors ${
+                isStaffSection
+                  ? 'text-slate-400 hover:text-white hover:bg-forensic-800'
+                  : 'text-forest-800 hover:text-forest-950 hover:bg-mist-100'
+              }`}
               aria-label="Toggle navigation"
             >
               <Menu className="w-5 h-5" />
             </button>
           )}
 
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-lg shadow-emerald-950/60 text-white font-black text-lg">
+          <div className="flex items-center gap-3">
+            {/* Atelier Crest / Monogram */}
+            <div
+              className={`w-8 h-8 rounded flex items-center justify-center font-bold text-xs transition-colors ${
+                isStaffSection
+                  ? 'bg-forensic-800 border border-forensic-700 text-emerald-400 font-mono'
+                  : 'bg-forest-800 text-white font-serif border border-forest-950 shadow-sm'
+              }`}
+            >
               FL
             </div>
+
             <div>
-              <span className="font-bold text-base tracking-tight text-white flex items-center gap-1.5">
-                FinLedger<span className="text-emerald-400">AI</span>
-              </span>
-              <span className="hidden sm:inline-block text-[10px] uppercase tracking-wider text-slate-400 font-mono">
-                DBMS Financial Ledger
+              <div className="flex items-center gap-2">
+                <span
+                  className={`tracking-tight text-sm ${
+                    isStaffSection
+                      ? 'font-mono font-semibold text-slate-100'
+                      : 'font-serif font-bold text-forest-950 text-base'
+                  }`}
+                >
+                  FinLedger<span className={isStaffSection ? 'text-emerald-400 font-mono' : 'text-forest-700 font-sans text-xs ml-0.5 uppercase tracking-wider font-bold'}>
+                    {isStaffSection ? '.AI' : ' Atelier'}
+                  </span>
+                </span>
+                <span
+                  className={`text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                    isStaffSection
+                      ? 'text-slate-400 border-forensic-700 bg-forensic-800'
+                      : 'text-forest-800 border-eucalyptus-300 bg-mist-100 font-bold'
+                  }`}
+                >
+                  {isStaffSection ? 'Forensic Ops Workbench' : 'Private Client Ledger'}
+                </span>
+              </div>
+              <span
+                className={`hidden sm:block text-[10px] uppercase tracking-wider font-mono ${
+                  isStaffSection ? 'text-slate-500' : 'text-forest-700 font-medium'
+                }`}
+              >
+                PostgreSQL Double-Entry • Advisory ML Triage
               </span>
             </div>
           </div>
@@ -44,16 +86,36 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar }) => {
 
         {/* Right user section */}
         {user && (
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className="flex items-center gap-2.5 bg-slate-900/60 border border-slate-800 rounded-xl px-3 py-1.5">
-              <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-slate-300">
-                <UserIcon className="w-4 h-4" />
+          <div className="flex items-center gap-3">
+            <div
+              className={`flex items-center gap-2 rounded px-2.5 py-1 border transition-colors ${
+                isStaffSection
+                  ? 'bg-forensic-800 border-forensic-700'
+                  : 'bg-mist-100 border-eucalyptus-300'
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded flex items-center justify-center ${
+                  isStaffSection ? 'bg-forensic-750 text-slate-400' : 'bg-sage-200 text-forest-800'
+                }`}
+              >
+                <UserIcon className="w-3.5 h-3.5" />
               </div>
-              <div className="hidden sm:block text-left">
-                <p className="text-xs font-semibold text-slate-200">
+              <div className="hidden sm:block text-left pr-1">
+                <p
+                  className={`text-xs font-medium ${
+                    isStaffSection ? 'text-slate-200' : 'text-ink-900 font-serif'
+                  }`}
+                >
                   {user.customer?.full_name || user.username}
                 </p>
-                <p className="text-[10px] text-slate-400 font-mono">{user.email}</p>
+                <p
+                  className={`text-[10px] font-mono ${
+                    isStaffSection ? 'text-slate-400' : 'text-ink-500'
+                  }`}
+                >
+                  {user.email}
+                </p>
               </div>
               <Badge variant={roleVariant} size="sm">
                 {user.role}
@@ -61,14 +123,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar }) => {
             </div>
 
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={logout}
-              leftIcon={<LogOut className="w-4 h-4 text-slate-400" />}
+              leftIcon={<LogOut className="w-3.5 h-3.5" />}
               className="text-xs"
-              title="Sign out"
             >
-              <span className="hidden sm:inline">Logout</span>
+              Sign Out
             </Button>
           </div>
         )}

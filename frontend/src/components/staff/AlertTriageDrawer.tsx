@@ -85,33 +85,33 @@ export const AlertTriageDrawer: React.FC<AlertTriageDrawerProps> = ({
         {error && <ErrorBanner message={error} />}
 
         {/* Top risk summary box */}
-        <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+        <div className="p-4 rounded-xl bg-forensic-900 border border-forensic-700 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs shadow-xs">
           <div>
-            <span className="text-slate-400 block mb-1">Advisory Risk Score</span>
-            <div className="flex items-center gap-1.5 font-mono text-base font-bold text-slate-100">
+            <span className="text-sage-400 block mb-1 font-bold">Advisory Risk Score</span>
+            <div className="flex items-center gap-1.5 font-mono text-base font-bold text-white">
               <Flame className="w-4 h-4 text-amber-400" />
               <span>{riskPercent}%</span>
             </div>
-            <span className="text-[10px] text-slate-500 font-mono">({riskScoreNum.toFixed(4)})</span>
+            <span className="text-[10px] text-sage-400 font-mono">({riskScoreNum.toFixed(4)})</span>
           </div>
 
           <div>
-            <span className="text-slate-400 block mb-1">Model Decision</span>
+            <span className="text-sage-400 block mb-1 font-bold">Model Decision</span>
             <Badge variant={decisionVariant[alert.decision] || 'neutral'} size="sm">
               {alert.decision}
             </Badge>
           </div>
 
           <div>
-            <span className="text-slate-400 block mb-1">Review Status</span>
+            <span className="text-sage-400 block mb-1 font-bold">Review Status</span>
             <Badge variant={reviewStatusVariant[alert.review_status]} size="sm">
               {alert.review_status}
             </Badge>
           </div>
 
           <div>
-            <span className="text-slate-400 block mb-1">Model Version</span>
-            <span className="font-mono text-slate-300 font-semibold text-xs">
+            <span className="text-sage-400 block mb-1 font-bold">Model Version</span>
+            <span className="font-mono text-white font-semibold text-xs">
               {alert.model_version}
             </span>
           </div>
@@ -120,16 +120,16 @@ export const AlertTriageDrawer: React.FC<AlertTriageDrawerProps> = ({
         {/* Explanation & Rule Flags */}
         <div className="space-y-3">
           <div>
-            <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1.5 font-mono">
               Automated Forensic Explanation
             </h4>
-            <p className="text-xs text-slate-300 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80 leading-relaxed">
+            <p className="text-xs text-sage-200 bg-forensic-900 p-3.5 rounded-xl border border-forensic-700 leading-relaxed font-sans shadow-xs">
               {alert.explanation || 'Standard transaction pattern without rule triggers.'}
             </p>
           </div>
 
           <div>
-            <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1.5 font-mono">
               Heuristic Rule Triggers
             </h4>
             <div className="flex flex-wrap gap-1.5">
@@ -140,39 +140,39 @@ export const AlertTriageDrawer: React.FC<AlertTriageDrawerProps> = ({
                   </Badge>
                 ))
               ) : (
-                <span className="text-xs text-slate-500 font-mono">No heuristic rule violations</span>
+                <span className="text-xs text-sage-400 font-mono">No heuristic rule violations</span>
               )}
             </div>
           </div>
 
           {/* Feature snapshot collapsible/inspector */}
           <div>
-            <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1.5 font-mono">
               Feature Vector Snapshot
             </h4>
-            <pre className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-400 overflow-x-auto max-h-36">
+            <pre className="p-3.5 rounded-xl bg-forensic-950 border border-forensic-700 text-[11px] font-mono text-emerald-400 overflow-x-auto max-h-36">
               {JSON.stringify(alert.feature_snapshot, null, 2)}
             </pre>
           </div>
         </div>
 
         {/* Triage Decision Form */}
-        <form onSubmit={handleReviewSubmit} noValidate className="border-t border-slate-800 pt-4 space-y-3">
+        <form onSubmit={handleReviewSubmit} noValidate className="border-t border-forensic-700 pt-4 space-y-3 font-mono">
           <div className="flex items-center gap-2">
             <FileCheck2 className="w-4 h-4 text-emerald-400" />
-            <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
               Submit Staff Triage Decision
             </h4>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-2.5">
             <button
               type="button"
               onClick={() => setReviewStatus('CLEARED')}
-              className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+              className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                 reviewStatus === 'CLEARED'
-                  ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm'
-                  : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                  ? 'bg-forest-800 border-forest-600 text-white shadow-xs'
+                  : 'bg-forensic-900 border-forensic-700 text-sage-400 hover:text-white'
               }`}
             >
               <CheckCircle className="w-3.5 h-3.5" />
@@ -181,10 +181,10 @@ export const AlertTriageDrawer: React.FC<AlertTriageDrawerProps> = ({
             <button
               type="button"
               onClick={() => setReviewStatus('CONFIRMED_FRAUD')}
-              className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+              className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                 reviewStatus === 'CONFIRMED_FRAUD'
-                  ? 'bg-rose-500/20 border-rose-500 text-rose-300 shadow-sm'
-                  : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                  ? 'bg-rose-950 border-rose-600 text-rose-200 shadow-xs'
+                  : 'bg-forensic-900 border-forensic-700 text-sage-400 hover:text-white'
               }`}
             >
               <ShieldAlert className="w-3.5 h-3.5" />
@@ -193,10 +193,10 @@ export const AlertTriageDrawer: React.FC<AlertTriageDrawerProps> = ({
             <button
               type="button"
               onClick={() => setReviewStatus('ESCALATED')}
-              className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+              className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                 reviewStatus === 'ESCALATED'
-                  ? 'bg-purple-500/20 border-purple-500 text-purple-300 shadow-sm'
-                  : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                  ? 'bg-purple-950 border-purple-600 text-purple-200 shadow-xs'
+                  : 'bg-forensic-900 border-forensic-700 text-sage-400 hover:text-white'
               }`}
             >
               <AlertTriangle className="w-3.5 h-3.5" />
@@ -205,7 +205,7 @@ export const AlertTriageDrawer: React.FC<AlertTriageDrawerProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-white uppercase tracking-wider mb-1.5">
               Forensic Review Notes (Mandatory)
             </label>
             <textarea
@@ -213,16 +213,16 @@ export const AlertTriageDrawer: React.FC<AlertTriageDrawerProps> = ({
               value={reviewNotes}
               onChange={(e) => setReviewNotes(e.target.value)}
               placeholder="State reason for clearing or escalating this transaction..."
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full bg-forensic-900 border border-forensic-700 rounded-xl p-3 text-xs text-white placeholder:text-sage-400/60 focus:outline-none focus:border-forest-500 font-sans"
               required
             />
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-1">
-            <Button variant="secondary" type="button" onClick={onClose}>
+          <div className="flex items-center justify-end gap-3 pt-1 font-sans">
+            <Button variant="secondary" type="button" onClick={onClose} className="font-semibold">
               Cancel
             </Button>
-            <Button variant="primary" type="submit" isLoading={isLoading}>
+            <Button variant="primary" type="submit" isLoading={isLoading} className="font-semibold shadow-xs">
               Commit Review Decision
             </Button>
           </div>

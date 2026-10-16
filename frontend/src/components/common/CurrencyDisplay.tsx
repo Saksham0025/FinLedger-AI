@@ -28,14 +28,14 @@ export const CurrencyDisplay: React.FC<CurrencyDisplayProps> = ({
   };
 
   let signText = '';
-  let colorClass = 'text-slate-100';
+  let colorClass = 'text-ink-950 [.theme-forensic_&]:text-slate-100';
 
   if (sign === 'plus' || (sign === 'auto' && num > 0)) {
     signText = '+';
-    if (colored) colorClass = 'text-emerald-400';
+    if (colored) colorClass = 'text-forest-800 [.theme-forensic_&]:text-emerald-400';
   } else if (sign === 'minus' || (sign === 'auto' && num < 0)) {
     signText = '-';
-    if (colored) colorClass = 'text-rose-400';
+    if (colored) colorClass = 'text-copper-700 [.theme-forensic_&]:text-rose-400';
   }
 
   return (

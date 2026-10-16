@@ -6,10 +6,11 @@ import { DateDisplay } from '../../components/common/DateDisplay';
 import { ErrorBanner } from '../../components/common/ErrorBanner';
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
 import { Modal } from '../../components/common/Modal';
+import { PageHeader } from '../../components/common/PageHeader';
 import { AuditLog } from '../../types/api';
 import { auditApi } from '../../api/audit';
 import { getErrorMessage } from '../../api/client';
-import { RefreshCw, Eye } from 'lucide-react';
+import { RefreshCw, Eye, Terminal } from 'lucide-react';
 
 export const AuditLogsPage: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -41,29 +42,24 @@ export const AuditLogsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
-            Append-Only Audit Trail
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Tamper-proof forensic audit trail enforced by PostgreSQL BEFORE UPDATE OR DELETE triggers
-          </p>
-        </div>
-
-        <Button
-          variant="secondary"
-          size="md"
-          onClick={fetchLogs}
-          leftIcon={<RefreshCw className="w-4 h-4 text-slate-400" />}
-        >
-          Refresh Logs
-        </Button>
-      </div>
+      <PageHeader
+        title="Append-Only Audit Trail"
+        description="Tamper-proof forensic audit trail enforced by PostgreSQL BEFORE UPDATE OR DELETE triggers"
+        action={
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={fetchLogs}
+            leftIcon={<RefreshCw className="w-3.5 h-3.5 text-stone-400" />}
+          >
+            Refresh Logs
+          </Button>
+        }
+      />
 
       {/* Action quick filters */}
-      <div className="p-4 rounded-xl glass-panel flex flex-wrap items-center gap-2 text-xs">
-        <span className="font-semibold text-slate-400 mr-1">Filter Action:</span>
+      <div className="p-4 rounded-xl bg-forensic-850 border border-forensic-700 flex flex-wrap items-center gap-2 text-xs shadow-sm">
+        <span className="font-bold text-sage-300 mr-1 text-[11px] uppercase tracking-wider font-mono">Filter Action:</span>
         {[
           'ALL',
           'AUTH_LOGIN_SUCCESS',
@@ -76,10 +72,10 @@ export const AuditLogsPage: React.FC = () => {
           <button
             key={act}
             onClick={() => setActionFilter(act === 'ALL' ? '' : act)}
-            className={`px-2.5 py-1 rounded-lg font-mono text-[11px] font-semibold transition-all border ${
+            className={`px-2.5 py-1 rounded font-mono text-[11px] font-semibold transition-all border ${
               (act === 'ALL' && !actionFilter) || actionFilter === act
-                ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                ? 'bg-forest-800 border-forest-600 text-white font-bold shadow-xs'
+                : 'bg-forensic-900 border-forensic-700 text-sage-300 hover:text-white hover:bg-forensic-800'
             }`}
           >
             {act}
@@ -93,38 +89,39 @@ export const AuditLogsPage: React.FC = () => {
       <Card
         title={`Audit Records (${logs.length})`}
         subtitle="Chronological audit events with user actor and forensic client metadata"
+        variant="forensic"
       >
         {isLoading ? (
           <LoadingSkeleton rows={5} />
         ) : logs.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-400">
+          <div className="p-8 text-center text-xs text-sage-400 font-mono">
             No audit records matching query parameters.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="text-[10px] uppercase text-slate-400 border-b border-slate-800 font-semibold tracking-wider">
+          <div className="overflow-x-auto rounded-lg border border-forensic-700">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="bg-forensic-900 text-[10px] uppercase text-sage-300 border-b border-forensic-700 font-bold tracking-wider">
                 <tr>
-                  <th className="pb-3 px-3">Log ID</th>
-                  <th className="pb-3 px-3">Action</th>
-                  <th className="pb-3 px-3">Entity Type</th>
-                  <th className="pb-3 px-3">Entity ID</th>
-                  <th className="pb-3 px-3">Actor UUID</th>
-                  <th className="pb-3 px-3">Timestamp (UTC)</th>
-                  <th className="pb-3 px-3 text-right">Details</th>
+                  <th className="py-2.5 px-3">Log ID</th>
+                  <th className="py-2.5 px-3">Action</th>
+                  <th className="py-2.5 px-3">Entity Type</th>
+                  <th className="py-2.5 px-3">Entity ID</th>
+                  <th className="py-2.5 px-3">Actor UUID</th>
+                  <th className="py-2.5 px-3">Timestamp (UTC)</th>
+                  <th className="py-2.5 px-3 text-right">Details</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
+              <tbody className="divide-y divide-forensic-750">
                 {logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-900/40">
-                    <td className="py-3 px-3 text-slate-400 font-bold">#{log.id}</td>
+                  <tr key={log.id} className="hover:bg-forensic-800/70 transition-colors">
+                    <td className="py-3 px-3 text-sage-400 font-bold tabular-nums">#{log.id}</td>
                     <td className="py-3 px-3 font-sans">
                       <Badge
                         variant={
                           log.action.includes('FAILURE') || log.action.includes('FAILED')
                             ? 'danger'
                             : log.action.includes('SUCCESS')
-                            ? 'success'
+                            ? 'evergreen'
                             : log.action.includes('REVIEW')
                             ? 'purple'
                             : 'neutral'
@@ -134,14 +131,14 @@ export const AuditLogsPage: React.FC = () => {
                         {log.action}
                       </Badge>
                     </td>
-                    <td className="py-3 px-3 text-slate-300">{log.entity_type}</td>
-                    <td className="py-3 px-3 text-slate-400 truncate max-w-[120px]">
+                    <td className="py-3 px-3 text-sage-200 font-mono">{log.entity_type}</td>
+                    <td className="py-3 px-3 text-sage-300 truncate max-w-[120px]">
                       {log.entity_id}
                     </td>
-                    <td className="py-3 px-3 text-slate-400 truncate max-w-[120px]">
+                    <td className="py-3 px-3 text-sage-300 truncate max-w-[120px]">
                       {log.actor_user_id || 'SYSTEM'}
                     </td>
-                    <td className="py-3 px-3 text-slate-400 text-[11px]">
+                    <td className="py-3 px-3 text-sage-400 text-[11px]">
                       <DateDisplay date={log.created_at} />
                     </td>
                     <td className="py-3 px-3 text-right font-sans">
@@ -149,7 +146,8 @@ export const AuditLogsPage: React.FC = () => {
                         variant="secondary"
                         size="sm"
                         onClick={() => setSelectedLog(log)}
-                        leftIcon={<Eye className="w-3.5 h-3.5" />}
+                        leftIcon={<Eye className="w-3.5 h-3.5 text-sage-300" />}
+                        className="text-xs font-semibold"
                       >
                         Inspect
                       </Button>
@@ -172,41 +170,42 @@ export const AuditLogsPage: React.FC = () => {
           maxWidth="lg"
         >
           <div className="space-y-4">
-            <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 grid grid-cols-2 gap-3 text-xs">
+            <div className="p-4 rounded-xl bg-forensic-900 border border-forensic-700 grid grid-cols-2 gap-3 text-xs">
               <div>
-                <span className="text-slate-400 block mb-0.5">Actor User ID</span>
-                <span className="font-mono text-slate-200">
+                <span className="text-sage-400 block mb-0.5 text-[10px] uppercase font-mono tracking-wider font-bold">Actor User ID</span>
+                <span className="font-mono text-white">
                   {selectedLog.actor_user_id || 'SYSTEM_INTERNAL'}
                 </span>
               </div>
               <div>
-                <span className="text-slate-400 block mb-0.5">Recorded Timestamp</span>
+                <span className="text-sage-400 block mb-0.5 text-[10px] uppercase font-mono tracking-wider font-bold">Recorded Timestamp</span>
                 <DateDisplay date={selectedLog.created_at} />
               </div>
               <div>
-                <span className="text-slate-400 block mb-0.5">Client IP Address</span>
-                <span className="font-mono text-slate-200">
+                <span className="text-sage-400 block mb-0.5 text-[10px] uppercase font-mono tracking-wider font-bold">Client IP Address</span>
+                <span className="font-mono text-white">
                   {selectedLog.ip_address || '127.0.0.1'}
                 </span>
               </div>
               <div>
-                <span className="text-slate-400 block mb-0.5">User Agent</span>
-                <span className="font-mono text-slate-300 truncate block text-[11px]">
+                <span className="text-sage-400 block mb-0.5 text-[10px] uppercase font-mono tracking-wider font-bold">User Agent</span>
+                <span className="font-mono text-sage-200 truncate block text-[11px]">
                   {selectedLog.user_agent || 'FinLedger-AI/System'}
                 </span>
               </div>
             </div>
 
             <div>
-              <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1.5 flex items-center gap-1.5 font-mono">
+                <Terminal className="w-3.5 h-3.5 text-emerald-400" />
                 Appended Metadata Payload (JSON)
               </h4>
-              <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono text-emerald-400 overflow-x-auto max-h-60">
+              <pre className="p-4 rounded-xl bg-forensic-950 border border-forensic-700 text-[11px] font-mono text-emerald-400 overflow-x-auto max-h-60">
                 {JSON.stringify(selectedLog.metadata_json, null, 2)}
               </pre>
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex justify-end border-t border-forensic-700">
               <Button variant="primary" onClick={() => setSelectedLog(null)}>
                 Close
               </Button>

@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
+from typing import List, Optional
 import uuid
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -51,3 +52,32 @@ class TransferResponse(BaseModel):
     failure_reason: str | None = None
     created_at: datetime
     posted_at: datetime | None = None
+
+
+class TransferPreviewRequest(BaseModel):
+    """Payload for POST /api/v1/transfers/preview (PayeeGuard)."""
+
+    source_account_id: uuid.UUID
+    destination_account_id: uuid.UUID
+    amount: Decimal = Field(gt=Decimal("0.00"), decimal_places=2)
+
+
+class TransferPreviewResponse(BaseModel):
+    """Authoritative beneficiary preview returned by PayeeGuard prior to financial commitment."""
+
+    source_account_id: str
+    source_account_number: str
+    source_available_balance: str
+    destination_account_id: str
+    recipient_legal_name: str
+    masked_account_number: str
+    account_type: str
+    nickname: Optional[str] = None
+    is_first_time_recipient: bool
+    prior_transfers_count: int
+    last_transferred_at: Optional[str] = None
+    amount: str
+    currency: str = "INR"
+    validation_status: str
+    advisory_warnings: List[str] = []
+    verification_provider: str

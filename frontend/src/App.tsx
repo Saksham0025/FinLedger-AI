@@ -15,10 +15,14 @@ import { AccountsPage } from './pages/customer/AccountsPage';
 import { TransfersPage } from './pages/customer/TransfersPage';
 import { ProductsPage } from './pages/customer/ProductsPage';
 import { PortfolioPage } from './pages/customer/PortfolioPage';
+import { DisputesPage } from './pages/customer/DisputesPage';
 
 // Staff Pages
 import { StaffDashboard } from './pages/staff/StaffDashboard';
 import { FraudTriagePage } from './pages/staff/FraudTriagePage';
+import { GraphExplorerPage } from './pages/staff/GraphExplorerPage';
+import { FraudLabPage } from './pages/staff/FraudLabPage';
+import { AIHealthPage } from './pages/staff/AIHealthPage';
 import { SystemAccountsPage } from './pages/staff/SystemAccountsPage';
 import { AuditLogsPage } from './pages/staff/AuditLogsPage';
 import { ReconciliationPage } from './pages/staff/ReconciliationPage';
@@ -89,6 +93,14 @@ export const App: React.FC = () => {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/disputes"
+              element={
+                <ProtectedRoute requiredRole="CUSTOMER">
+                  <DisputesPage />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Staff Authenticated Routes */}
             <Route
@@ -104,6 +116,30 @@ export const App: React.FC = () => {
               element={
                 <ProtectedRoute requiredRole="STAFF">
                   <FraudTriagePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/staff/graph"
+              element={
+                <ProtectedRoute requiredRole="STAFF">
+                  <GraphExplorerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/staff/fraud-lab"
+              element={
+                <ProtectedRoute requiredRole="STAFF">
+                  <FraudLabPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/staff/ai-health"
+              element={
+                <ProtectedRoute requiredRole="STAFF">
+                  <AIHealthPage />
                 </ProtectedRoute>
               }
             />

@@ -195,3 +195,123 @@ Customer investment holdings linked to simulated products.
 | `start_date` | `TIMESTAMPTZ` | No | `NOW()` | Timestamp of investment commencement |
 | `maturity_date` | `TIMESTAMPTZ` | No | — | Timestamp of maturity |
 | `created_at` | `TIMESTAMPTZ` | No | `NOW()` | Timestamp of investment creation |
+
+---
+
+## 11. Table: `payee_edges` (Innovation B: PayeeGuard)
+Authoritative counterparty transfer relationships and volume aggregation.
+
+| Column | PostgreSQL Type | Nullable | Default | Constraints & Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `UUID` | No | `gen_random_uuid()` | **Primary Key** |
+| `source_account_id` | `UUID` | No | — | **Foreign Key** $\to$ `accounts(id)` (`ON DELETE RESTRICT`), Indexed |
+| `destination_account_id` | `UUID` | No | — | **Foreign Key** $\to$ `accounts(id)` (`ON DELETE RESTRICT`), Indexed |
+| `transfer_count` | `INTEGER` | No | `1` | Historical completed transfers between counterparty pair |
+| `total_amount` | `NUMERIC(15, 2)` | No | `0.00` | Cumulative transfer volume |
+| `avg_amount` | `NUMERIC(15, 2)` | No | `0.00` | Historical average transfer size |
+| `first_transfer_at` | `TIMESTAMPTZ` | No | `NOW()` | First recorded transfer timestamp |
+| `last_transfer_at` | `TIMESTAMPTZ` | No | `NOW()` | Most recent transfer timestamp |
+
+---
+
+## 12. Table: `saved_payees` (Innovation B: PayeeGuard)
+Customer-whitelisted beneficiaries with nickname and verification metadata.
+
+| Column | PostgreSQL Type | Nullable | Default | Constraints & Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `UUID` | No | `gen_random_uuid()` | **Primary Key** |
+| `customer_id` | `UUID` | No | — | **Foreign Key** $\to$ `customers(id)` (`ON DELETE CASCADE`), Indexed |
+| `account_id` | `UUID` | No | — | **Foreign Key** $\to$ `accounts(id)` (`ON DELETE RESTRICT`), Indexed |
+| `nickname` | `VARCHAR(100)` | Yes | `NULL` | Customer-assigned display alias |
+| `is_verified` | `BOOLEAN` | No | `TRUE` | Internal beneficiary directory validation flag |
+| `created_at` | `TIMESTAMPTZ` | No | `NOW()` | Payee addition timestamp |
+
+---
+
+## 13. Table: `investigation_notes` (Innovation C: Forensic Dossier)
+Staff forensic observations, hypotheses, and rationale notes linked to fraud alerts.
+
+| Column | PostgreSQL Type | Nullable | Default | Constraints & Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `UUID` | No | `gen_random_uuid()` | **Primary Key** |
+| `fraud_prediction_id` | `UUID` | No | — | **Foreign Key** $\to$ `fraud_predictions(id)` (`ON DELETE CASCADE`), Indexed |
+| `staff_user_id` | `UUID` | No | — | **Foreign Key** $\to$ `users(id)` (`ON DELETE RESTRICT`), Indexed |
+| `note_type` | `VARCHAR(30)` | No | `'OBSERVATION'` | `CHECK (note_type IN ('OBSERVATION', 'HYPOTHESIS', 'CORROBORATING_EVIDENCE', 'RESOLUTION_RATIONALE'))` |
+| `content` | `TEXT` | No | — | Forensic investigation commentary |
+| `created_at` | `TIMESTAMPTZ` | No | `NOW()` | Note timestamp |
+
+---
+
+## 14. Table: `disputes` (Innovation C: Customer Recourse)
+Formal customer transaction dispute records and investigation states.
+
+| Column | PostgreSQL Type | Nullable | Default | Constraints & Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `UUID` | No | `gen_random_uuid()` | **Primary Key** |
+| `customer_id` | `UUID` | No | — | **Foreign Key** $\to$ `customers(id)` (`ON DELETE RESTRICT`), Indexed |
+| `transfer_request_id` | `UUID` | No | — | **Foreign Key** $\to$ `transfer_requests(id)` (`ON DELETE RESTRICT`), Indexed |
+| `category` | `VARCHAR(50)` | No | — | `CHECK (category IN ('UNAUTHORIZED', 'SUSPICIOUS_PAYEE', 'AMOUNT_DISCREPANCY', 'PROCESSING_DELAY', 'OTHER'))` |
+| `description` | `TEXT` | No | — | Customer statement of issue |
+| `status` | `VARCHAR(20)` | No | `'OPEN'` | `CHECK (status IN ('OPEN', 'INVESTIGATING', 'NEEDS_INFO', 'RESOLVED', 'REJECTED'))`, Indexed |
+| `assigned_staff_id` | `UUID` | Yes | `NULL` | **Foreign Key** $\to$ `users(id)` (`ON DELETE SET NULL`) |
+| `resolution_notes` | `TEXT` | Yes | `NULL` | Staff conclusion summary |
+| `resolved_at` | `TIMESTAMPTZ` | Yes | `NULL` | Resolution timestamp |
+| `created_at` | `TIMESTAMPTZ` | No | `NOW()` | Creation timestamp |
+| `updated_at` | `TIMESTAMPTZ` | No | `NOW()` | Modification timestamp |
+
+---
+
+## 15. Table: `case_events` (Innovation C: Append-Only Recourse Timeline)
+Immutable audit event sequence for customer dispute lifecycle.
+
+| Column | PostgreSQL Type | Nullable | Default | Constraints & Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `UUID` | No | `gen_random_uuid()` | **Primary Key** |
+| `dispute_id` | `UUID` | No | — | **Foreign Key** $\to$ `disputes(id)` (`ON DELETE CASCADE`), Indexed |
+| `actor_user_id` | `UUID` | No | — | **Foreign Key** $\to$ `users(id)` (`ON DELETE RESTRICT`), Indexed |
+| `actor_role` | `VARCHAR(20)` | No | — | Role of initiating actor (`CUSTOMER`, `STAFF`, `ADMIN`) |
+| `event_type` | `VARCHAR(50)` | No | — | Event classification (`DISPUTE_OPENED`, `STATUS_CHANGE`, `CUSTOMER_RESPONSE`, `RESOLVED`, `REJECTED`) |
+| `from_status` | `VARCHAR(20)` | Yes | `NULL` | Prior status state |
+| `to_status` | `VARCHAR(20)` | Yes | `NULL` | New status state |
+| `notes` | `TEXT` | Yes | `NULL` | Commentary or rationale |
+| `metadata_snapshot`| `JSONB` | No | `'{}'::jsonb` | Point-in-time context |
+| `created_at` | `TIMESTAMPTZ` | No | `NOW()` | Immutable timestamp |
+
+---
+
+## 16. Table: `graph_findings` (Innovation A: LedgerGraph)
+Persisted temporal money-flow pattern detections over relational ledger data.
+
+| Column | PostgreSQL Type | Nullable | Default | Constraints & Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `UUID` | No | `gen_random_uuid()` | **Primary Key** |
+| `pattern_type` | `VARCHAR(50)` | No | — | `CHECK (pattern_type IN ('FAN_IN', 'FAN_OUT', 'RAPID_PASS_THROUGH', 'MULTI_HOP_LAYERING', 'CIRCULAR_WASH', 'BURST_VELOCITY'))` |
+| `pattern_version` | `VARCHAR(20)` | No | — | Detector release version (e.g. `ledgergraph-v1.0.0`) |
+| `severity` | `VARCHAR(20)` | No | — | `CHECK (severity IN ('INFO', 'SUSPICIOUS', 'CRITICAL'))` |
+| `heuristic_score` | `NUMERIC(5, 4)` | No | — | `CHECK (heuristic_score >= 0.0000 AND heuristic_score <= 1.0000)` |
+| `primary_account_id` | `UUID` | No | — | **Foreign Key** $\to$ `accounts(id)` (`ON DELETE CASCADE`), Indexed |
+| `time_window_start` | `TIMESTAMPTZ` | No | — | Evaluation window lower bound |
+| `time_window_end` | `TIMESTAMPTZ` | No | — | Evaluation window upper bound |
+| `evidence_json` | `JSONB` | No | `'{}'::jsonb` | Participating transfers, amounts, timestamps, and hop paths |
+| `explanation` | `TEXT` | No | — | Deterministic human explanation of pattern match |
+| `review_status` | `VARCHAR(20)` | No | `'PENDING'` | `CHECK (review_status IN ('PENDING', 'CLEARED', 'CONFIRMED_FRAUD', 'ESCALATED'))`, Partial Indexed |
+| `reviewed_by_user_id`| `UUID` | Yes | `NULL` | **Foreign Key** $\to$ `users(id)` (`ON DELETE SET NULL`) |
+| `review_notes` | `TEXT` | Yes | `NULL` | Staff determination notes |
+| `reviewed_at` | `TIMESTAMPTZ` | Yes | `NULL` | Review action timestamp |
+| `created_at` | `TIMESTAMPTZ` | No | `NOW()` | Detection timestamp |
+
+---
+
+## 17. Table: `simulation_runs` (Innovation D: Fraud Lab)
+Isolated synthetic benchmark runs and detector comparative evaluations.
+
+| Column | PostgreSQL Type | Nullable | Default | Constraints & Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `UUID` | No | `gen_random_uuid()` | **Primary Key** |
+| `scenario_name` | `VARCHAR(100)` | No | — | Evaluated synthetic pattern family |
+| `seed` | `INTEGER` | No | — | Pseudorandom seed for fixed reproducibility |
+| `sample_size` | `INTEGER` | No | — | Number of simulated transactions evaluated |
+| `summary_metrics` | `JSONB` | No | `'{}'::jsonb` | Multi-detector precision, recall, F1, confusion matrices |
+| `executed_by_user_id`| `UUID` | Yes | `NULL` | **Foreign Key** $\to$ `users(id)` (`ON DELETE SET NULL`) |
+| `created_at` | `TIMESTAMPTZ` | No | `NOW()` | Benchmark execution timestamp |
+

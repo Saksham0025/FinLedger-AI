@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { CurrencyDisplay } from '../../components/common/CurrencyDisplay';
@@ -17,9 +16,11 @@ import {
   PieChart,
   Scale,
   ArrowRight,
-  TrendingUp,
   FileText,
   Users,
+  GitBranch,
+  FlaskConical,
+  Activity,
 } from 'lucide-react';
 
 export const StaffDashboard: React.FC = () => {
@@ -55,13 +56,19 @@ export const StaffDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Editorial Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-forensic-700">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
-            Staff & Risk Operations Portal
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            System-wide transactional oversight &bull; Advisory AI fraud triage &bull; Relational reconciliation
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-serif font-bold tracking-tight text-white">
+              Forensic Operations Command Center
+            </h1>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-forest-900 text-sage-200 border border-forest-700 font-bold tracking-wider uppercase">
+              Staff Clearance
+            </span>
+          </div>
+          <p className="text-xs text-sage-300 font-mono mt-1">
+            System-wide transaction oversight • Multi-model fraud triage • Real-time double-entry audit
           </p>
         </div>
 
@@ -69,10 +76,11 @@ export const StaffDashboard: React.FC = () => {
           <Link to="/staff/fraud">
             <Button
               variant="danger"
-              size="md"
-              leftIcon={<ShieldAlert className="w-4 h-4" />}
+              size="sm"
+              leftIcon={<ShieldAlert className="w-3.5 h-3.5" />}
+              className="font-semibold shadow-xs"
             >
-              Fraud Alert Triage ({pendingAlerts.length})
+              Alert Triage ({pendingAlerts.length})
             </Button>
           </Link>
         </div>
@@ -80,190 +88,228 @@ export const StaffDashboard: React.FC = () => {
 
       {error && <ErrorBanner message={error} onRetry={fetchData} />}
 
-      {/* KPI Cards */}
+      {/* KPI Metric Strip */}
       {isLoading ? (
-        <LoadingSkeleton rows={3} />
+        <LoadingSkeleton rows={2} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card glow="rose">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">Unreviewed Alerts</span>
-              <ShieldAlert className="w-4 h-4 text-rose-400" />
+          <div className="bg-forensic-850 border border-forensic-700 rounded-xl p-4 shadow-sm hover:border-forest-600 transition-colors">
+            <div className="text-[11px] font-mono uppercase tracking-wider text-sage-300 mb-1 flex items-center justify-between font-bold">
+              <span>Unreviewed Alerts</span>
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
             </div>
-            <span className="text-3xl font-extrabold text-rose-300 font-mono">
+            <div className="text-2xl font-bold font-mono tracking-tight text-rose-400 tabular-nums">
               {pendingAlerts.length}
-            </span>
-            <p className="text-[11px] text-slate-400 mt-2 font-mono">
-              Advisory alerts pending staff triage
-            </p>
-          </Card>
-
-          <Card glow="emerald">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">14-Day Transfer Volume</span>
-              <ArrowRightLeft className="w-4 h-4 text-emerald-400" />
             </div>
-            <CurrencyDisplay
-              amount={dailyVolume?.total_window_transfers_volume ?? 0}
-              size="2xl"
-              colored
-            />
-            <p className="text-[11px] text-slate-400 mt-2 font-mono">
+            <p className="text-[10px] text-sage-400 font-mono mt-1">Pending staff determination</p>
+          </div>
+
+          <div className="bg-forensic-850 border border-forensic-700 rounded-xl p-4 shadow-sm hover:border-forest-600 transition-colors">
+            <div className="text-[11px] font-mono uppercase tracking-wider text-sage-300 mb-1 flex items-center justify-between font-bold">
+              <span>14-Day Transfer Volume</span>
+              <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-400" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-white tabular-nums">
+              <CurrencyDisplay amount={dailyVolume?.total_window_transfers_volume ?? 0} size="2xl" colored />
+            </div>
+            <p className="text-[10px] text-sage-400 font-mono mt-1">
               {dailyVolume?.total_window_transfers_count ?? 0} posted transfers
             </p>
-          </Card>
+          </div>
 
-          <Card glow="amber">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">14-Day Investment Volume</span>
-              <PieChart className="w-4 h-4 text-amber-400" />
+          <div className="bg-forensic-850 border border-forensic-700 rounded-xl p-4 shadow-sm hover:border-forest-600 transition-colors">
+            <div className="text-[11px] font-mono uppercase tracking-wider text-sage-300 mb-1 flex items-center justify-between font-bold">
+              <span>Investment Subscriptions</span>
+              <PieChart className="w-3.5 h-3.5 text-amber-400" />
             </div>
-            <CurrencyDisplay
-              amount={dailyVolume?.total_window_investments_volume ?? 0}
-              size="2xl"
-            />
-            <p className="text-[11px] text-slate-400 mt-2 font-mono">
-              {dailyVolume?.total_window_investments_count ?? 0} subscriptions
+            <div className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-white tabular-nums">
+              <CurrencyDisplay amount={dailyVolume?.total_window_investments_volume ?? 0} size="2xl" />
+            </div>
+            <p className="text-[10px] text-sage-400 font-mono mt-1">
+              {dailyVolume?.total_window_investments_count ?? 0} active contracts
             </p>
-          </Card>
+          </div>
 
-          <Card>
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">Reconciliation Audit</span>
-              <Scale className="w-4 h-4 text-emerald-400" />
+          <div className="bg-forensic-850 border border-forensic-700 rounded-xl p-4 shadow-sm hover:border-forest-600 transition-colors">
+            <div className="text-[11px] font-mono uppercase tracking-wider text-sage-300 mb-1 flex items-center justify-between font-bold">
+              <span>Reconciliation Status</span>
+              <Scale className="w-3.5 h-3.5 text-emerald-400" />
             </div>
             <div className="mt-1">
               <Badge
-                variant={reconciliation?.is_balanced ? 'success' : 'danger'}
-                size="md"
+                variant={reconciliation?.is_balanced ? 'evergreen' : 'danger'}
+                size="sm"
               >
-                {reconciliation?.is_balanced ? 'System Balanced (0 Delta)' : 'Discrepancy Detected'}
+                {reconciliation?.is_balanced ? '0 Disparity (Balanced)' : 'Discrepancy Detected'}
               </Badge>
             </div>
-            <p className="text-[11px] text-slate-400 mt-2 font-mono">
+            <p className="text-[10px] text-sage-400 font-mono mt-1.5">
               {reconciliation?.total_accounts_checked ?? 0} accounts audited
             </p>
-          </Card>
+          </div>
         </div>
       )}
 
-      {/* Staff Queues & Operations Grid */}
+      {/* Staff Operational Workbenches Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Urgent Alert Queue */}
-        <Card
-          title="Advisory AI Fraud Triage Queue"
-          subtitle="Top unreviewed alerts scored by Random Forest & Heuristic rules"
-          action={
+        <div className="bg-forensic-850 border border-forensic-700 rounded-xl overflow-hidden shadow-sm">
+          <div className="px-5 py-3.5 bg-forensic-800 border-b border-forensic-700 flex items-center justify-between">
+            <div>
+              <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-white font-mono">
+                Advisory AI Alert Triage Queue
+              </h3>
+              <p className="text-[11px] text-sage-300 font-mono mt-0.5">
+                Top unreviewed incidents scored by Random Forest & Heuristics
+              </p>
+            </div>
             <Link to="/staff/fraud">
-              <Button variant="ghost" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
-                View All
+              <Button variant="ghost" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />} className="text-xs text-sage-200 hover:text-white hover:bg-forensic-750">
+                Full Queue
               </Button>
             </Link>
-          }
-        >
-          {isLoading ? (
-            <LoadingSkeleton rows={4} />
-          ) : pendingAlerts.length === 0 ? (
-            <div className="p-6 text-center text-xs text-slate-400">
-              Zero pending fraud alerts. All transactions cleared or escalated.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {pendingAlerts.slice(0, 5).map((alert) => (
-                <div
-                  key={alert.id}
-                  className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between gap-3"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant={
-                          alert.decision === 'HIGH_RISK'
-                            ? 'danger'
-                            : alert.decision === 'MEDIUM_RISK'
-                            ? 'warning'
-                            : 'success'
-                        }
-                        size="sm"
-                      >
-                        {alert.decision}
-                      </Badge>
-                      <span className="font-mono text-xs font-bold text-slate-200">
-                        Risk Score: {(parseFloat(String(alert.risk_score)) * 100).toFixed(1)}%
-                      </span>
+          </div>
+
+          <div className="p-4 sm:p-5">
+            {isLoading ? (
+              <LoadingSkeleton rows={4} />
+            ) : pendingAlerts.length === 0 ? (
+              <div className="p-6 text-center text-xs text-sage-300 font-mono">
+                Zero pending fraud alerts. All transactions cleared or escalated.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {pendingAlerts.slice(0, 5).map((alert) => (
+                  <div
+                    key={alert.id}
+                    className="p-3.5 rounded-lg bg-forensic-900 border border-forensic-700 flex items-center justify-between gap-3 font-mono shadow-xs hover:border-forest-600 transition-colors"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={
+                            alert.decision === 'HIGH_RISK'
+                              ? 'danger'
+                              : alert.decision === 'MEDIUM_RISK'
+                              ? 'warning'
+                              : 'success'
+                          }
+                          size="sm"
+                        >
+                          {alert.decision}
+                        </Badge>
+                        <span className="text-xs font-bold text-white">
+                          Score: {(parseFloat(String(alert.risk_score)) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-sage-300 truncate max-w-sm font-sans">
+                        {alert.explanation}
+                      </p>
                     </div>
-                    <p className="text-[11px] text-slate-400 truncate max-w-sm">
-                      {alert.explanation}
-                    </p>
+
+                    <Link to="/staff/fraud">
+                      <Button variant="secondary" size="sm" className="text-xs font-semibold">
+                        Investigate
+                      </Button>
+                    </Link>
                   </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
-                  <Link to="/staff/fraud">
-                    <Button variant="secondary" size="sm">
-                      Investigate
-                    </Button>
-                  </Link>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+        {/* Primary Innovation Workbenches */}
+        <div className="bg-forensic-850 border border-forensic-700 rounded-xl overflow-hidden shadow-sm">
+          <div className="px-5 py-3.5 bg-forensic-800 border-b border-forensic-700">
+            <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-white font-mono">
+              Advanced Forensic Workbenches
+            </h3>
+            <p className="text-[11px] text-sage-300 font-mono mt-0.5">
+              Direct access to graph analysis, isolated simulations, and model governance
+            </p>
+          </div>
 
-        {/* Quick Operations Links */}
-        <Card title="Forensic & Compliance Modules">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-3.5 font-mono">
             <Link
-              to="/staff/accounts"
-              className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all flex items-start gap-3"
+              to="/staff/graph"
+              className="p-3.5 rounded-lg bg-forensic-900 border border-forensic-700 hover:border-forest-500 hover:bg-forensic-800 transition-all flex items-start gap-3 shadow-xs group"
             >
-              <Users className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+              <GitBranch className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
               <div>
-                <h4 className="text-xs font-bold text-slate-200">Accounts Explorer</h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Universal customer accounts & balances inspection.
+                <h4 className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors">LedgerGraph Explorer</h4>
+                <p className="text-[10px] text-sage-300 mt-0.5 font-sans">
+                  Temporal money-flow network & cycle detection.
                 </p>
               </div>
             </Link>
 
             <Link
-              to="/staff/audit"
-              className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all flex items-start gap-3"
+              to="/staff/fraud-lab"
+              className="p-3.5 rounded-lg bg-forensic-900 border border-forensic-700 hover:border-forest-500 hover:bg-forensic-800 transition-all flex items-start gap-3 shadow-xs group"
             >
-              <FileText className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <FlaskConical className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
               <div>
-                <h4 className="text-xs font-bold text-slate-200">Audit Trail Log</h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Immutable append-only logs with JSON metadata viewer.
+                <h4 className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors">Fraud Lab Benchmarks</h4>
+                <p className="text-[10px] text-sage-300 mt-0.5 font-sans">
+                  Isolated synthetic multi-model comparisons.
+                </p>
+              </div>
+            </Link>
+
+            <Link
+              to="/staff/ai-health"
+              className="p-3.5 rounded-lg bg-forensic-900 border border-forensic-700 hover:border-forest-500 hover:bg-forensic-800 transition-all flex items-start gap-3 shadow-xs group"
+            >
+              <Activity className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+              <div>
+                <h4 className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors">AI Health & Drift</h4>
+                <p className="text-[10px] text-sage-300 mt-0.5 font-sans">
+                  Runtime model SHA-256 fingerprint & PSI drift.
                 </p>
               </div>
             </Link>
 
             <Link
               to="/staff/reconciliation"
-              className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all flex items-start gap-3"
+              className="p-3.5 rounded-lg bg-forensic-900 border border-forensic-700 hover:border-forest-500 hover:bg-forensic-800 transition-all flex items-start gap-3 shadow-xs group"
             >
-              <Scale className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <Scale className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
               <div>
-                <h4 className="text-xs font-bold text-slate-200">Reconciliation Audit</h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Run system-wide double-entry ledger balance audit.
+                <h4 className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors">Ledger Reconciliation</h4>
+                <p className="text-[10px] text-sage-300 mt-0.5 font-sans">
+                  Automated mathematical double-entry audit.
                 </p>
               </div>
             </Link>
 
             <Link
-              to="/staff/reports"
-              className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all flex items-start gap-3"
+              to="/staff/accounts"
+              className="p-3.5 rounded-lg bg-forensic-900 border border-forensic-700 hover:border-forest-500 hover:bg-forensic-800 transition-all flex items-start gap-3 shadow-xs group"
             >
-              <TrendingUp className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+              <Users className="w-4 h-4 text-sage-300 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
               <div>
-                <h4 className="text-xs font-bold text-slate-200">Analytics & Reports</h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Daily volumes, balance tiers, and product performance.
+                <h4 className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors">Accounts Explorer</h4>
+                <p className="text-[10px] text-sage-300 mt-0.5 font-sans">
+                  Universal customer ledger passbooks inspection.
+                </p>
+              </div>
+            </Link>
+
+            <Link
+              to="/staff/audit"
+              className="p-3.5 rounded-lg bg-forensic-900 border border-forensic-700 hover:border-forest-500 hover:bg-forensic-800 transition-all flex items-start gap-3 shadow-xs group"
+            >
+              <FileText className="w-4 h-4 text-sage-300 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+              <div>
+                <h4 className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors">Audit Trail Stream</h4>
+                <p className="text-[10px] text-sage-300 mt-0.5 font-sans">
+                  Immutable chronological audit logs with JSON.
                 </p>
               </div>
             </Link>
           </div>
-        </Card>
+        </div>
       </div>
     </div>
   );

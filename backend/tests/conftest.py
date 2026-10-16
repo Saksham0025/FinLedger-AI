@@ -58,9 +58,11 @@ def clean_test_database_session(engine):
         with engine.connect() as conn:
             conn.execute(
                 text(
-                    "TRUNCATE audit_logs, fraud_predictions, transfer_requests, "
-                    "ledger_entries, ledger_transactions, investments, "
-                    "financial_products, accounts, customers, users CASCADE;"
+                    "TRUNCATE simulation_runs, case_events, disputes, graph_findings, "
+                    "investigation_notes, saved_payees, payee_edges, audit_logs, "
+                    "fraud_predictions, transfer_requests, ledger_entries, "
+                    "ledger_transactions, investments, financial_products, "
+                    "accounts, customers, users CASCADE;"
                 )
             )
             conn.commit()

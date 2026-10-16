@@ -198,12 +198,12 @@ cd backend
 ```
 *Includes:* Multi-threaded competing withdrawal drain race (5 concurrent threads), bi-directional transfer deadlock prevention, concurrent investment provisioning.
 
-### 3. Frontend Unit & Component Tests (14 Tests)
+### 3. Frontend Unit & Component Tests (16 Tests across 5 Test Files)
 ```powershell
 cd frontend
 npm test
 ```
-*Expected Outcome:* **4 test files passed, 14 passed** (100% pass rate).
+*Expected Outcome:* **5 test files passed, 16 passed** (100% pass rate).
 
 ### 4. Double-Entry Balance Reconciliation Audits
 ```powershell
@@ -216,12 +216,19 @@ cd backend
 ```
 *Expected Outcome:* **0 discrepancies, Global Net Ledger Delta: INR 0.00**.
 
-### 5. Machine Learning Fraud Evaluation Benchmark
+### 5. Machine Learning & Multi-Detector Benchmark (Fraud Lab)
 ```powershell
 cd backend
-..\.venv\Scripts\python.exe ml/evaluate.py
+..\.venv\Scripts\python.exe -c "
+from app.core.database import SessionLocal
+from app.services.fraud_lab_service import FraudLabService
+db = SessionLocal()
+res = FraudLabService.run_simulation(db, scenario_name='ALL_SCENARIOS_BENCHMARK', seed=42, sample_size=200)
+print('Detectors Evaluated:', list(res['detectors'].keys()))
+print('Zero Ledger Mutations Guarantee:', res['isolation_guarantee'])
+"
 ```
-*Expected Outcome:* Evaluates Random Forest classifier and rule-based baseline over 1,500 test transactions with academic synthetic disclaimer.
+*Expected Outcome:* Evaluates Rule Baseline, Random Forest, LedgerGraph, and Hybrid Ensemble with zero authoritative financial mutations.
 
 ### 6. Phase 7 DBMS Performance Benchmark Profiling
 ```powershell
@@ -232,25 +239,34 @@ cd backend
 
 ---
 
-## 7. College Demonstration Script
+## 7. Primary Architectural Innovations
 
-A dedicated, step-by-step examination script is provided in [docs/college_demonstration_guide.md](file:///c:/Users/Saksham%20Raj/Downloads/bin/Game,Project/Projects/FinLedger-AI/docs/college_demonstration_guide.md):
-
-1. **Customer Registration & Auto-Provisioning**: Zero-balance savings account opened without fabricated money.
-2. **Simulated Opening Deposit**: Double-entry balanced credit on customer account and debit on clearing account.
-3. **Peer-to-Peer Transfer**: Atomic transfer execution and digital receipt issuance.
-4. **Idempotency Replay**: Identical request retransmission returns cached HTTP 200 without duplicate money movement.
-5. **Competing Withdrawals**: Overspending rejected with HTTP 400; independent audit failure logged.
-6. **Synthetic Suspicious Transaction**: Advisory ML inference triggering `RULE_STRUCTURING` alert.
-7. **Staff Investigation & Forensic Review**: Human-in-the-loop triage with mandatory forensic notes and audit record.
-8. **Ledger Immutability Defense**: PostgreSQL trigger blocks raw SQL `UPDATE` / `DELETE` on posted entries.
-9. **System Balance Reconciliation**: System-wide mathematical check asserting net delta equals INR 0.00.
-10. **DBMS Query Plan Evaluation**: Query plan demonstration proving 105x speedup on compliance searches.
+1. **LedgerGraph (Innovation A)**: Explainable temporal money-flow network analysis directly over relational PostgreSQL data. Detects multi-account typologies (Fan-In, Rapid Pass-Through, Circular Wash, Multi-Hop Layering) strictly without future temporal edge leakage.
+2. **PayeeGuard (Innovation B)**: Pre-submission beneficiary verification preview showing legal recipient names, masked account numbers, first-time payee flags, and volume deviation warnings.
+3. **Forensic Dossier & Recourse (Innovation C)**: Unified investigation dossier connecting alerts, double-entry ledger legs, ML explainability, graph signals, and staff notes. Integrated customer recourse workflow (`/disputes`) with append-only `case_events`.
+4. **Fraud Lab (Innovation D)**: Seeded, reproducible synthetic adversarial scenario workbench evaluating transparent rules, Random Forest, LedgerGraph, and Hybrid Ensemble under strict ledger isolation.
+5. **AI Health & Governance (Innovation E)**: Runtime model inspection, artifact fingerprinting, fallback mode disclosure, and feature drift monitoring (Population Stability Index).
 
 ---
 
-## 8. Academic Disclaimers & Known Limitations
+## 8. College Demonstration Protocol
 
-1. **Synthetic Data Disclaimer**: All machine learning metrics (Precision, Recall, ROC-AUC) were computed against synthetic banking transaction distributions. They demonstrate pipeline mechanics, feature engineering, and explainability workflows, and do not represent validated real-world fraud detection efficacy.
-2. **Query Planner Trade-Off (Workload 2A)**: As documented in [docs/dbms_experiments.md](file:///c:/Users/Saksham%20Raj/Downloads/bin/Game,Project/Projects/FinLedger-AI/docs/dbms_experiments.md), queries combining sparse per-account filters with `LIMIT 50` can experience planner discounting under composite status indexes. Single-customer transaction history should continue relying on dedicated account index lookups.
-3. **Simulated Investments**: Financial product yields and mutual fund values are simulated for educational demonstration.
+A complete 16-step examination walkthrough is documented in [docs/college_demonstration_guide.md](file:///c:/Users/Saksham%20Raj/Downloads/bin/Game,Project/Projects/FinLedger-AI/docs/college_demonstration_guide.md), demonstrating:
+- Deterministic onboarding, opening deposits, and balanced ledger postings.
+- PayeeGuard beneficiary verification and client idempotency replay.
+- Fraud Lab multi-model benchmarking under strict isolation.
+- LedgerGraph SVG network visualization and pattern detection.
+- Unified Forensic Dossier linking source ledger legs and human decisions.
+- Customer recourse case lifecycle and append-only event trail.
+- AI Health runtime readiness and PSI drift indicators.
+- DBMS trigger defense against SQL tampering and `EXPLAIN (ANALYZE, BUFFERS)` performance benchmarks.
+
+---
+
+## 9. Academic Disclaimers & Known Limitations
+
+1. **Synthetic Data Disclaimer**: Machine learning metrics (Precision, Recall, F1) were evaluated against synthetic banking transaction scenarios. They demonstrate algorithmic integration and explainability pipelines, and do not represent uncalibrated real-world banking fraud efficacy.
+2. **Advisory AI Boundary**: AI models and graph detectors are strictly advisory. They never modify account balances, reject transfers, or freeze accounts autonomously.
+3. **Query Planner Trade-Off (Workload 2A)**: As documented in [docs/dbms_experiments.md](file:///c:/Users/Saksham%20Raj/Downloads/bin/Game,Project/Projects/FinLedger-AI/docs/dbms_experiments.md), queries combining sparse per-account filters with `LIMIT 50` can experience planner discounting under composite status indexes. Single-customer transaction history should continue relying on dedicated account index lookups.
+4. **Simulated Investments & Internal Directory**: Financial product yields and PayeeGuard beneficiary lookups operate against internal database directory records, and do not integrate live external NPCI/UPI gateways.
+

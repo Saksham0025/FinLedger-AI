@@ -391,6 +391,27 @@ class TransferService:
             except Exception:
                 pass
 
+            # Step 10: Post-commit Payee Edge update & LedgerGraph Analysis (strictly advisory)
+            try:
+                from app.services.payee_guard_service import PayeeGuardService
+                from app.services.ledger_graph_service import LedgerGraphService
+
+                PayeeGuardService.record_transfer_edge(
+                    db=db,
+                    source_account_id=source_account_id,
+                    destination_account_id=destination_account_id,
+                    amount=amount,
+                )
+                db.commit()
+
+                LedgerGraphService.analyze_transaction(
+                    db=db,
+                    transfer_request_id=transfer_req.id,
+                    persist=True,
+                )
+            except Exception:
+                db.rollback()
+
             return transfer_req, False
 
         except IntegrityError as exc:

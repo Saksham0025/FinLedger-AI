@@ -42,32 +42,37 @@ export const Modal: React.FC<ModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-ink-950/60 backdrop-blur-[1px] transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Modal Dialog */}
       <div
-        className={`relative w-full ${maxWidthStyles[maxWidth]} glass-panel rounded-2xl border border-slate-700/80 p-6 shadow-2xl z-10 transition-all`}
+        className={`relative w-full ${maxWidthStyles[maxWidth]} bg-mist-50 border-2 border-forest-800 rounded-lg p-5 sm:p-6 shadow-hero z-10 transition-all text-ink-900 [.theme-forensic_&]:bg-forensic-850 [.theme-forensic_&]:border-forensic-700 [.theme-forensic_&]:text-slate-100`}
         role="dialog"
         aria-modal="true"
       >
-        <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="flex items-start justify-between gap-4 -mx-5 -mt-5 sm:-mx-6 sm:-mt-6 mb-5 px-5 py-4 bg-forest-900 border-b border-forest-950 rounded-t-md text-white [.theme-forensic_&]:bg-forensic-900 [.theme-forensic_&]:border-forensic-700">
           <div>
-            <h3 className="text-lg font-bold text-slate-100">{title}</h3>
+            <h3 className="text-base sm:text-lg font-serif font-bold text-white [.theme-forensic_&]:text-slate-100 [.theme-forensic_&]:font-sans">
+              {title}
+            </h3>
             {description && (
-              <p className="text-xs text-slate-400 mt-1">{description}</p>
+              <p className="text-xs text-sage-100 [.theme-forensic_&]:text-slate-400 mt-0.5 font-mono">
+                {description}
+              </p>
             )}
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
             aria-label="Close dialog"
+            className="p-1 rounded text-sage-200 hover:text-white hover:bg-forest-800 transition-colors [.theme-forensic_&]:text-slate-400 [.theme-forensic_&]:hover:text-white [.theme-forensic_&]:hover:bg-forensic-800"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
+
         <div>{children}</div>
       </div>
     </div>

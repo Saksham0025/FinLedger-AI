@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/common/Button';
 import { ErrorBanner } from '../components/common/ErrorBanner';
 import { getErrorMessage } from '../api/client';
-import { User, Mail, Lock, CheckCircle2, ArrowRight } from 'lucide-react';
+import { User, Mail, Lock, CheckCircle2, ArrowRight, Scale, CreditCard, Phone } from 'lucide-react';
 
 export const RegisterPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -58,147 +58,181 @@ export const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden">
-      <div className="w-full max-w-lg relative z-10">
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-100">
-            Create Customer Profile
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Join FinLedger-AI with an auditable double-entry savings account.
-          </p>
+    <div className="min-h-screen bg-parchment text-ink-900 flex flex-col justify-center items-center px-4 py-8 sm:py-16 font-sans">
+      <div className="w-full max-w-2xl bg-surface border border-hairline rounded-md p-6 sm:p-8 shadow-atelier">
+        {/* Header */}
+        <div className="flex items-center justify-between pb-4 mb-6 border-b border-hairline">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-7 h-7 rounded bg-forest-800 text-paper-50 font-serif font-bold text-xs flex items-center justify-center border border-forest-900">
+                FL
+              </div>
+              <span className="font-serif font-bold text-base text-ink-950">
+                FinLedger Atelier
+              </span>
+            </div>
+            <h1 className="font-serif text-xl sm:text-2xl font-semibold text-ink-950">
+              Provision Customer Account
+            </h1>
+            <p className="text-xs text-ink-500 font-sans mt-0.5">
+              Registers verified KYC identity and creates an initial INR Primary Savings Account
+            </p>
+          </div>
+          <span className="hidden sm:inline-block text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-hairline bg-paper-50 text-ink-600">
+            KYC Protocol
+          </span>
         </div>
 
-        <div className="glass-panel rounded-2xl p-6 sm:p-8 shadow-2xl border border-slate-800/80">
-          {error && <ErrorBanner message={error} className="mb-4" />}
+        {error && <ErrorBanner message={error} className="mb-4" />}
 
-          {success ? (
-            <div className="p-6 text-center space-y-3">
-              <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
-              <h3 className="text-lg font-bold text-emerald-200">Registration Successful!</h3>
-              <p className="text-xs text-slate-400">
-                Your customer account has been created. Redirecting to login...
-              </p>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                    Legal Full Name
-                  </label>
+        {success ? (
+          <div className="p-8 text-center space-y-3 bg-forest-50 border border-forest-200 rounded-md">
+            <CheckCircle2 className="w-10 h-10 text-forest-800 mx-auto" />
+            <h3 className="text-base font-serif font-bold text-forest-900">
+              Customer Account Provisioned
+            </h3>
+            <p className="text-xs text-forest-700 font-sans max-w-md mx-auto">
+              Your identity has been registered and an INR savings liability account created. Redirecting to authentication terminal...
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] font-bold text-ink-700 uppercase tracking-wider mb-1 font-mono">
+                  Full Legal Name
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" />
                   <input
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. Saksham Raj"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="e.g. Aarav Sharma"
+                    className="w-full bg-paper-50 border border-hairline rounded pl-9 pr-3 py-2 text-xs sm:text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 focus:bg-white font-sans transition-colors"
                     required
                   />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                    Username
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
-                    <input
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      placeholder="e.g. saksham01"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      required
-                    />
-                  </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-bold text-ink-700 uppercase tracking-wider mb-1 font-mono">
+                  Username
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" />
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="e.g. aarav_sharma"
+                    className="w-full bg-paper-50 border border-hairline rounded pl-9 pr-3 py-2 text-xs sm:text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 focus:bg-white font-mono transition-colors"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] font-bold text-ink-700 uppercase tracking-wider mb-1 font-mono">
                   Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                  <Mail className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" />
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@example.com"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="aarav@example.com"
+                    className="w-full bg-paper-50 border border-hairline rounded pl-9 pr-3 py-2 text-xs sm:text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 focus:bg-white font-mono transition-colors"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                  Password (8+ Characters)
+                <label className="block text-[11px] font-bold text-ink-700 uppercase tracking-wider mb-1 font-mono">
+                  Passphrase (Min. 8 Chars)
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                  <Lock className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" />
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full bg-paper-50 border border-hairline rounded pl-9 pr-3 py-2 text-xs sm:text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 focus:bg-white font-mono transition-colors"
                     required
                   />
                 </div>
               </div>
+            </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                    Phone (Optional)
-                  </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] font-bold text-ink-700 uppercase tracking-wider mb-1 font-mono">
+                  Phone (Optional)
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" />
                   <input
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+91 9876543210"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="+91 98765 43210"
+                    className="w-full bg-paper-50 border border-hairline rounded pl-9 pr-3 py-2 text-xs sm:text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 focus:bg-white font-mono transition-colors"
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                    PAN Card (Optional)
-                  </label>
+              <div>
+                <label className="block text-[11px] font-bold text-ink-700 uppercase tracking-wider mb-1 font-mono">
+                  PAN Number (Optional, 10 Chars)
+                </label>
+                <div className="relative">
+                  <CreditCard className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" />
                   <input
                     type="text"
                     maxLength={10}
                     value={panNumber}
                     onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
                     placeholder="ABCDE1234F"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono uppercase text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full bg-paper-50 border border-hairline rounded pl-9 pr-3 py-2 text-xs sm:text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 focus:bg-white font-mono uppercase transition-colors"
                   />
                 </div>
               </div>
+            </div>
 
-              <Button
-                type="submit"
-                variant="primary"
-                size="lg"
-                isLoading={isLoading}
-                rightIcon={<ArrowRight className="w-4 h-4" />}
-                className="w-full mt-2"
-              >
-                Register Customer Account
-              </Button>
-            </form>
-          )}
+            {/* Invariant Disclosure */}
+            <div className="p-3 bg-paper-50 border border-hairline-subtle rounded text-[11px] text-ink-600 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-forest-800 text-[10px] uppercase font-mono tracking-wider">
+                <Scale className="w-3.5 h-3.5" />
+                <span>Initial Balance Notice</span>
+              </div>
+              <p className="leading-relaxed">
+                Opening balances are deposited against internal system clearing accounts (<code className="font-mono text-ink-800">INR-SYS-CLEARING</code>). Money is never manufactured arbitrarily.
+              </p>
+            </div>
 
-          <div className="mt-5 pt-4 border-t border-slate-800 text-center">
-            <p className="text-xs text-slate-400">
-              Already have an account?{' '}
-              <Link to="/login" className="text-emerald-400 font-semibold hover:underline">
-                Sign In
-              </Link>
-            </p>
-          </div>
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              isLoading={isLoading}
+              rightIcon={<ArrowRight className="w-4 h-4" />}
+              className="w-full mt-2 font-medium"
+            >
+              Complete Account Provisioning
+            </Button>
+          </form>
+        )}
+
+        <div className="mt-6 pt-3 border-t border-hairline text-center text-xs text-ink-500">
+          Already registered?{' '}
+          <Link to="/login" className="text-forest-800 font-semibold hover:underline">
+            Return to Sign In
+          </Link>
         </div>
       </div>
     </div>

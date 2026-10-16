@@ -132,16 +132,18 @@ class ReportService:
     def get_daily_volume(db: Session, days: int = 14) -> dict:
         """Aggregate daily transactional and investment volumes for the last N days."""
         now_utc = datetime.now(timezone.utc)
-        start_date = now_utc - timedelta(days=days)
+        today_utc = now_utc.date()
+        start_date = today_utc - timedelta(days=days)
+        start_datetime = datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
 
         # 1. Daily transfers
         transfers_stmt = (
             select(
-                func.to_char(TransferRequest.posted_at, "YYYY-MM-DD").label("day"),
+                func.to_char(func.timezone("UTC", TransferRequest.posted_at), "YYYY-MM-DD").label("day"),
                 func.count(TransferRequest.id).label("count"),
                 func.coalesce(func.sum(TransferRequest.amount), Decimal("0.00")).label("volume"),
             )
-            .where(TransferRequest.status == "POSTED", TransferRequest.posted_at >= start_date)
+            .where(TransferRequest.status == "POSTED", TransferRequest.posted_at >= start_datetime)
             .group_by("day")
             .order_by("day")
         )
@@ -150,11 +152,11 @@ class ReportService:
         # 2. Daily investments
         investments_stmt = (
             select(
-                func.to_char(Investment.created_at, "YYYY-MM-DD").label("day"),
+                func.to_char(func.timezone("UTC", Investment.created_at), "YYYY-MM-DD").label("day"),
                 func.count(Investment.id).label("count"),
                 func.coalesce(func.sum(Investment.invested_amount), Decimal("0.00")).label("volume"),
             )
-            .where(Investment.created_at >= start_date)
+            .where(Investment.created_at >= start_datetime)
             .group_by("day")
             .order_by("day")
         )
@@ -163,7 +165,7 @@ class ReportService:
         # Construct records for every date in range
         records = []
         for d in range(days + 1):
-            curr_date_str = (start_date + timedelta(days=d)).strftime("%Y-%m-%d")
+            curr_date_str = (start_date + timedelta(days=d)).isoformat()
             t_count, t_vol = transfers_by_day.get(curr_date_str, (0, Decimal("0.00")))
             i_count, i_vol = investments_by_day.get(curr_date_str, (0, Decimal("0.00")))
             records.append({
