@@ -85,7 +85,8 @@ def populate_benchmark_database(
             raise RuntimeError(f"ABORT: Connected to production/dev database '{current_db}'!")
         print(f"[Populate] Verified target database: '{current_db}'")
 
-        # Truncate existing benchmark tables in proper cascade order
+        # Truncate existing benchmark tables in proper cascade order (opt in past the append-only guard)
+        conn.execute(text("SET LOCAL finledger.allow_truncate = 'on'"))
         conn.execute(
             text(
                 "TRUNCATE TABLE audit_logs, fraud_predictions, ledger_entries, "

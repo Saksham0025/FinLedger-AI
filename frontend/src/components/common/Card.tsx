@@ -20,8 +20,6 @@ interface CardProps {
   action?: React.ReactNode;
   className?: string;
   variant?: CardVariant;
-  folio?: string;
-  regMark?: boolean;
   glow?: 'emerald' | 'amber' | 'rose' | 'none';
 }
 
@@ -32,8 +30,6 @@ export const Card: React.FC<CardProps> = ({
   action,
   className = '',
   variant = 'mist',
-  folio,
-  regMark = false,
   glow = 'none',
 }) => {
   // Border accent indication
@@ -76,20 +72,15 @@ export const Card: React.FC<CardProps> = ({
 
   return (
     <div
-      className={`border rounded-lg overflow-hidden transition-colors ${variantStyles[variant]} ${borderStyles[glow]} ${regMark ? 'ledger-reg-mark' : ''} ${className} [.theme-forensic_&]:bg-forensic-850 [.theme-forensic_&]:border-forensic-700 [.theme-forensic_&]:text-slate-100 [.theme-forensic_&]:shadow-none`}
+      className={`border rounded-lg overflow-hidden transition-colors ${variantStyles[variant]} ${borderStyles[glow]} ${className} [.theme-forensic_&]:bg-forensic-850 [.theme-forensic_&]:border-forensic-700 [.theme-forensic_&]:text-slate-100 [.theme-forensic_&]:shadow-none`}
     >
-      {(title || action || folio) && (
+      {(title || action) && (
         <div
           className={`px-5 py-3.5 flex items-center justify-between gap-4 ${headerBgStyles[variant]} [.theme-forensic_&]:bg-forensic-900 [.theme-forensic_&]:border-forensic-700`}
         >
           <div>
-            {folio && (
-              <span className={`block text-[9px] font-mono tracking-widest uppercase mb-0.5 ${isDarkHeader ? 'text-sage-200' : 'text-forest-700'}`}>
-                {folio}
-              </span>
-            )}
             {typeof title === 'string' ? (
-              <h3 className={`text-xs sm:text-sm font-semibold tracking-wide uppercase font-mono ${isDarkHeader ? 'text-white' : 'text-forest-950'} [.theme-forensic_&]:text-slate-200`}>
+              <h3 className={`text-base font-serif font-semibold ${isDarkHeader ? 'text-white' : 'text-forest-950'} [.theme-forensic_&]:font-sans [.theme-forensic_&]:text-sm [.theme-forensic_&]:text-slate-200`}>
                 {title}
               </h3>
             ) : (

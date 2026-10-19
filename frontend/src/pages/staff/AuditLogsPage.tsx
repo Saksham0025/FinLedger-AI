@@ -43,8 +43,8 @@ export const AuditLogsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Append-Only Audit Trail"
-        description="Tamper-proof forensic audit trail enforced by PostgreSQL BEFORE UPDATE OR DELETE triggers"
+        title="Audit trail"
+        description="Every security and money event, in order. Rows are append-only: PostgreSQL triggers reject any UPDATE, DELETE or TRUNCATE."
         action={
           <Button
             variant="secondary"
@@ -59,15 +59,17 @@ export const AuditLogsPage: React.FC = () => {
 
       {/* Action quick filters */}
       <div className="p-4 rounded-xl bg-forensic-850 border border-forensic-700 flex flex-wrap items-center gap-2 text-xs shadow-sm">
-        <span className="font-bold text-sage-300 mr-1 text-[11px] uppercase tracking-wider font-mono">Filter Action:</span>
+        <span className="font-bold text-sage-300 mr-1 text-[11px] font-mono">Show:</span>
         {[
           'ALL',
           'AUTH_LOGIN_SUCCESS',
           'AUTH_LOGIN_FAILURE',
           'TRANSFER_POSTED',
           'TRANSFER_FAILED',
+          'TRANSFER_REVERSED',
           'INVESTMENT_PURCHASE_FAILED',
           'FRAUD_ALERT_REVIEW',
+          'DISPUTE_CREATED',
         ].map((act) => (
           <button
             key={act}
@@ -100,14 +102,14 @@ export const AuditLogsPage: React.FC = () => {
         ) : (
           <div className="overflow-x-auto rounded-lg border border-forensic-700">
             <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-forensic-900 text-[10px] uppercase text-sage-300 border-b border-forensic-700 font-bold tracking-wider">
+              <thead className="bg-forensic-900 text-[11px] text-sage-300 border-b border-forensic-700 font-bold">
                 <tr>
                   <th className="py-2.5 px-3">Log ID</th>
                   <th className="py-2.5 px-3">Action</th>
                   <th className="py-2.5 px-3">Entity Type</th>
                   <th className="py-2.5 px-3">Entity ID</th>
                   <th className="py-2.5 px-3">Actor UUID</th>
-                  <th className="py-2.5 px-3">Timestamp (UTC)</th>
+                  <th className="py-2.5 px-3">Time</th>
                   <th className="py-2.5 px-3 text-right">Details</th>
                 </tr>
               </thead>
@@ -172,23 +174,23 @@ export const AuditLogsPage: React.FC = () => {
           <div className="space-y-4">
             <div className="p-4 rounded-xl bg-forensic-900 border border-forensic-700 grid grid-cols-2 gap-3 text-xs">
               <div>
-                <span className="text-sage-400 block mb-0.5 text-[10px] uppercase font-mono tracking-wider font-bold">Actor User ID</span>
+                <span className="text-sage-400 block mb-0.5 text-[11px] font-mono font-bold">Actor User ID</span>
                 <span className="font-mono text-white">
                   {selectedLog.actor_user_id || 'SYSTEM_INTERNAL'}
                 </span>
               </div>
               <div>
-                <span className="text-sage-400 block mb-0.5 text-[10px] uppercase font-mono tracking-wider font-bold">Recorded Timestamp</span>
+                <span className="text-sage-400 block mb-0.5 text-[11px] font-mono font-bold">Recorded Timestamp</span>
                 <DateDisplay date={selectedLog.created_at} />
               </div>
               <div>
-                <span className="text-sage-400 block mb-0.5 text-[10px] uppercase font-mono tracking-wider font-bold">Client IP Address</span>
+                <span className="text-sage-400 block mb-0.5 text-[11px] font-mono font-bold">Client IP Address</span>
                 <span className="font-mono text-white">
                   {selectedLog.ip_address || '127.0.0.1'}
                 </span>
               </div>
               <div>
-                <span className="text-sage-400 block mb-0.5 text-[10px] uppercase font-mono tracking-wider font-bold">User Agent</span>
+                <span className="text-sage-400 block mb-0.5 text-[11px] font-mono font-bold">User Agent</span>
                 <span className="font-mono text-sage-200 truncate block text-[11px]">
                   {selectedLog.user_agent || 'FinLedger-AI/System'}
                 </span>
@@ -196,7 +198,7 @@ export const AuditLogsPage: React.FC = () => {
             </div>
 
             <div>
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1.5 flex items-center gap-1.5 font-mono">
+              <h4 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1.5 font-mono">
                 <Terminal className="w-3.5 h-3.5 text-emerald-400" />
                 Appended Metadata Payload (JSON)
               </h4>

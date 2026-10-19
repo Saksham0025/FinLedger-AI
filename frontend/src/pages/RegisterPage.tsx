@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/common/Button';
 import { ErrorBanner } from '../components/common/ErrorBanner';
 import { getErrorMessage } from '../api/client';
-import { User, Mail, Lock, CheckCircle2, ArrowRight, Scale, CreditCard, Phone } from 'lucide-react';
+import { User, Mail, Lock, CheckCircle2, CreditCard, Phone } from 'lucide-react';
 
 export const RegisterPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -26,12 +26,12 @@ export const RegisterPage: React.FC = () => {
     setError(null);
 
     if (password.length < 8) {
-      setError('Password must be at least 8 characters long');
+      setError('Use a password of at least 8 characters.');
       return;
     }
 
     if (panNumber.trim() && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(panNumber.trim())) {
-      setError('PAN number must match 10-character Indian format (e.g. ABCDE1234F)');
+      setError('Enter a PAN in the format ABCDE1234F, or leave it blank.');
       return;
     }
 
@@ -57,76 +57,67 @@ export const RegisterPage: React.FC = () => {
     }
   };
 
+  const inputClass =
+    'w-full bg-parchment-50 border border-hairline rounded pl-9 pr-3 py-2 text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 focus:bg-white transition-colors';
+  const labelClass = 'block text-sm font-medium text-ink-800 mb-1.5';
+
   return (
     <div className="min-h-screen bg-parchment text-ink-900 flex flex-col justify-center items-center px-4 py-8 sm:py-16 font-sans">
-      <div className="w-full max-w-2xl bg-surface border border-hairline rounded-md p-6 sm:p-8 shadow-atelier">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 mb-6 border-b border-hairline">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-7 h-7 rounded bg-forest-800 text-paper-50 font-serif font-bold text-xs flex items-center justify-center border border-forest-900">
-                FL
-              </div>
-              <span className="font-serif font-bold text-base text-ink-950">
-                FinLedger Atelier
-              </span>
-            </div>
-            <h1 className="font-serif text-xl sm:text-2xl font-semibold text-ink-950">
-              Provision Customer Account
-            </h1>
-            <p className="text-xs text-ink-500 font-sans mt-0.5">
-              Registers verified KYC identity and creates an initial INR Primary Savings Account
-            </p>
+      <div className="w-full max-w-2xl bg-surface border border-hairline rounded-lg p-6 sm:p-8 shadow-atelier">
+        <div className="flex items-center gap-2.5 mb-6">
+          <div className="w-8 h-8 rounded bg-forest-800 text-white font-serif font-bold text-sm flex items-center justify-center">
+            FL
           </div>
-          <span className="hidden sm:inline-block text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-hairline bg-paper-50 text-ink-600">
-            KYC Protocol
-          </span>
+          <span className="font-serif font-semibold text-lg text-ink-950">FinLedger</span>
         </div>
+        <h1 className="font-serif text-2xl sm:text-3xl font-semibold text-ink-950">Create your account</h1>
+        <p className="text-sm text-ink-600 mt-1">
+          After you sign in you can open a savings account and add an opening deposit.
+        </p>
 
-        {error && <ErrorBanner message={error} className="mb-4" />}
+        {error && <ErrorBanner message={error} className="mt-5" />}
 
         {success ? (
-          <div className="p-8 text-center space-y-3 bg-forest-50 border border-forest-200 rounded-md">
-            <CheckCircle2 className="w-10 h-10 text-forest-800 mx-auto" />
-            <h3 className="text-base font-serif font-bold text-forest-900">
-              Customer Account Provisioned
-            </h3>
-            <p className="text-xs text-forest-700 font-sans max-w-md mx-auto">
-              Your identity has been registered and an INR savings liability account created. Redirecting to authentication terminal...
-            </p>
+          <div className="mt-6 p-8 text-center space-y-3 bg-sage-100 border border-moss-300 rounded-md" role="status">
+            <CheckCircle2 className="w-10 h-10 text-forest-800 mx-auto" aria-hidden="true" />
+            <h2 className="text-lg font-serif font-semibold text-forest-900">You&apos;re registered</h2>
+            <p className="text-sm text-forest-800">Taking you to sign in…</p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 mt-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[11px] font-bold text-ink-700 uppercase tracking-wider mb-1 font-mono">
-                  Full Legal Name
+                <label htmlFor="reg-name" className={labelClass}>
+                  Full name
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" />
+                  <User className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" aria-hidden="true" />
                   <input
+                    id="reg-name"
                     type="text"
+                    autoComplete="name"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. Aarav Sharma"
-                    className="w-full bg-paper-50 border border-hairline rounded pl-9 pr-3 py-2 text-xs sm:text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 focus:bg-white font-sans transition-colors"
+                    placeholder="Aarav Sharma"
+                    className={inputClass}
                     required
                   />
                 </div>
               </div>
-
               <div>
-                <label className="block text-[11px] font-bold text-ink-700 uppercase tracking-wider mb-1 font-mono">
+                <label htmlFor="reg-username" className={labelClass}>
                   Username
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" />
+                  <User className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" aria-hidden="true" />
                   <input
+                    id="reg-username"
                     type="text"
+                    autoComplete="username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="e.g. aarav_sharma"
-                    className="w-full bg-paper-50 border border-hairline rounded pl-9 pr-3 py-2 text-xs sm:text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 focus:bg-white font-mono transition-colors"
+                    placeholder="aarav_sharma"
+                    className={inputClass}
                     required
                   />
                 </div>
@@ -135,105 +126,95 @@ export const RegisterPage: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[11px] font-bold text-ink-700 uppercase tracking-wider mb-1 font-mono">
-                  Email Address
+                <label htmlFor="reg-email" className={labelClass}>
+                  Email
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" />
+                  <Mail className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" aria-hidden="true" />
                   <input
+                    id="reg-email"
                     type="email"
+                    autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="aarav@example.com"
-                    className="w-full bg-paper-50 border border-hairline rounded pl-9 pr-3 py-2 text-xs sm:text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 focus:bg-white font-mono transition-colors"
+                    className={inputClass}
                     required
                   />
                 </div>
               </div>
-
               <div>
-                <label className="block text-[11px] font-bold text-ink-700 uppercase tracking-wider mb-1 font-mono">
-                  Passphrase (Min. 8 Chars)
+                <label htmlFor="reg-password" className={labelClass}>
+                  Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" />
+                  <Lock className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" aria-hidden="true" />
                   <input
+                    id="reg-password"
                     type="password"
+                    autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="w-full bg-paper-50 border border-hairline rounded pl-9 pr-3 py-2 text-xs sm:text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 focus:bg-white font-mono transition-colors"
+                    className={inputClass}
+                    aria-describedby="reg-password-hint"
                     required
                   />
                 </div>
+                <p id="reg-password-hint" className="text-xs text-ink-500 mt-1">
+                  At least 8 characters.
+                </p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[11px] font-bold text-ink-700 uppercase tracking-wider mb-1 font-mono">
-                  Phone (Optional)
+                <label htmlFor="reg-phone" className={labelClass}>
+                  Phone <span className="font-normal text-ink-500">(optional)</span>
                 </label>
                 <div className="relative">
-                  <Phone className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" />
+                  <Phone className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" aria-hidden="true" />
                   <input
+                    id="reg-phone"
                     type="tel"
+                    autoComplete="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="+91 98765 43210"
-                    className="w-full bg-paper-50 border border-hairline rounded pl-9 pr-3 py-2 text-xs sm:text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 focus:bg-white font-mono transition-colors"
+                    className={inputClass}
                   />
                 </div>
               </div>
-
               <div>
-                <label className="block text-[11px] font-bold text-ink-700 uppercase tracking-wider mb-1 font-mono">
-                  PAN Number (Optional, 10 Chars)
+                <label htmlFor="reg-pan" className={labelClass}>
+                  PAN <span className="font-normal text-ink-500">(optional)</span>
                 </label>
                 <div className="relative">
-                  <CreditCard className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" />
+                  <CreditCard className="absolute left-3 top-2.5 w-4 h-4 text-ink-400" aria-hidden="true" />
                   <input
+                    id="reg-pan"
                     type="text"
                     maxLength={10}
                     value={panNumber}
                     onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
                     placeholder="ABCDE1234F"
-                    className="w-full bg-paper-50 border border-hairline rounded pl-9 pr-3 py-2 text-xs sm:text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 focus:bg-white font-mono uppercase transition-colors"
+                    className={`${inputClass} font-mono`}
                   />
                 </div>
               </div>
             </div>
 
-            {/* Invariant Disclosure */}
-            <div className="p-3 bg-paper-50 border border-hairline-subtle rounded text-[11px] text-ink-600 space-y-1">
-              <div className="flex items-center gap-1.5 font-bold text-forest-800 text-[10px] uppercase font-mono tracking-wider">
-                <Scale className="w-3.5 h-3.5" />
-                <span>Initial Balance Notice</span>
-              </div>
-              <p className="leading-relaxed">
-                Opening balances are deposited against internal system clearing accounts (<code className="font-mono text-ink-800">INR-SYS-CLEARING</code>). Money is never manufactured arbitrarily.
-              </p>
-            </div>
-
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              isLoading={isLoading}
-              rightIcon={<ArrowRight className="w-4 h-4" />}
-              className="w-full mt-2 font-medium"
-            >
-              Complete Account Provisioning
+            <Button type="submit" variant="primary" size="lg" isLoading={isLoading} className="w-full mt-2">
+              Create account
             </Button>
           </form>
         )}
 
-        <div className="mt-6 pt-3 border-t border-hairline text-center text-xs text-ink-500">
+        <p className="mt-6 text-sm text-ink-600">
           Already registered?{' '}
           <Link to="/login" className="text-forest-800 font-semibold hover:underline">
-            Return to Sign In
+            Sign in
           </Link>
-        </div>
+        </p>
       </div>
     </div>
   );

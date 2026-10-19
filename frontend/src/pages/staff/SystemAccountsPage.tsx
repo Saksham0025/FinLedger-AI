@@ -56,8 +56,8 @@ export const SystemAccountsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="System Accounts Explorer"
-        description="Universal relational database accounts browser • Customer liabilities and system clearing accounts"
+        title="Accounts"
+        description="Every account in the system, including the internal clearing account. Open one to see its postings."
         action={
           <Button
             variant="secondary"
@@ -65,7 +65,7 @@ export const SystemAccountsPage: React.FC = () => {
             onClick={fetchAccounts}
             leftIcon={<RefreshCw className="w-3.5 h-3.5 text-stone-400" />}
           >
-            Refresh Accounts
+            Refresh
           </Button>
         }
       />
@@ -85,12 +85,12 @@ export const SystemAccountsPage: React.FC = () => {
               type="text"
               value={customerFilter}
               onChange={(e) => setCustomerFilter(e.target.value)}
-              placeholder="Filter by Customer UUID (e.g. 5a4b3c2d-1234-5678-9abc-def012345678)"
+              placeholder="Filter by customer ID"
               className="w-full bg-forensic-900 border border-forensic-700 rounded-lg pl-10 pr-3.5 py-2 text-xs font-mono text-white placeholder:text-sage-400/60 focus:outline-none focus:border-forest-500"
             />
           </div>
           <Button variant="primary" type="submit" size="sm" className="font-semibold shadow-xs">
-            Apply Filter
+            Filter
           </Button>
           {customerFilter && (
             <Button
@@ -112,8 +112,8 @@ export const SystemAccountsPage: React.FC = () => {
 
       {/* Accounts Table */}
       <Card
-        title={`All Registered Accounts (${accounts.length})`}
-        subtitle="PostgreSQL accounts table records with cached balance version"
+        title={`All accounts (${accounts.length})`}
+        subtitle="Stored balance and row version, straight from the accounts table. The clearing account is negative by design: it funds every deposit."
         variant="forensic"
       >
         {isLoading ? (
@@ -125,7 +125,7 @@ export const SystemAccountsPage: React.FC = () => {
         ) : (
           <div className="overflow-x-auto rounded-lg border border-forensic-700">
             <table className="w-full text-left text-xs">
-              <thead className="bg-forensic-900 text-[10px] uppercase text-sage-300 border-b border-forensic-700 font-bold tracking-wider font-mono">
+              <thead className="bg-forensic-900 text-[11px] text-sage-300 border-b border-forensic-700 font-bold font-mono">
                 <tr>
                   <th className="py-2.5 px-3">Account Number</th>
                   <th className="py-2.5 px-3">Type</th>
@@ -143,7 +143,7 @@ export const SystemAccountsPage: React.FC = () => {
                       <span className="font-bold text-white block">
                         {acc.account_number}
                       </span>
-                      <span className="text-[10px] text-sage-400 truncate max-w-[150px] block">
+                      <span className="text-[11px] text-sage-400 truncate max-w-[150px] block">
                         ID: {acc.id}
                       </span>
                     </td>
@@ -214,7 +214,7 @@ export const SystemAccountsPage: React.FC = () => {
           ) : (
             <div className="overflow-x-auto border border-forensic-700 rounded-lg">
               <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-forensic-900 text-[10px] uppercase text-sage-300 border-b border-forensic-700 font-bold tracking-wider">
+                <thead className="bg-forensic-900 text-[11px] text-sage-300 border-b border-forensic-700 font-bold">
                   <tr>
                     <th className="py-2.5 px-3">Seq #</th>
                     <th className="py-2.5 px-3">Leg</th>

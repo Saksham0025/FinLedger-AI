@@ -1,23 +1,16 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/common/Button';
-import { FileQuestion, ArrowLeft } from 'lucide-react';
 
 export const NotFoundPage: React.FC = () => {
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
-      <div className="p-4 rounded-2xl bg-slate-800 text-slate-400 mb-4">
-        <FileQuestion className="w-12 h-12" />
-      </div>
-      <h1 className="text-2xl font-bold text-slate-100">404 — Page Not Found</h1>
-      <p className="text-xs text-slate-400 max-w-sm mt-2 mb-6">
-        The requested URL path does not exist in the FinLedger-AI portal.
-      </p>
-      <Link to="/login">
-        <Button variant="secondary" leftIcon={<ArrowLeft className="w-4 h-4" />}>
-          Return to Portal
-        </Button>
+    <main className="min-h-screen bg-parchment flex flex-col items-center justify-center p-6 text-center">
+      <p className="font-serif text-6xl font-semibold text-forest-800">404</p>
+      <h1 className="mt-3 text-2xl font-serif font-semibold text-ink-950">This page doesn&apos;t exist</h1>
+      <p className="text-sm text-ink-600 max-w-sm mt-2 mb-6">Check the address, or go back to your overview.</p>
+      <Link to="/">
+        <Button variant="primary">Go to overview</Button>
       </Link>
-    </div>
+    </main>
   );
 };

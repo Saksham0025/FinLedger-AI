@@ -39,11 +39,9 @@ def purchase_investment(
     data: InvestmentCreateRequest,
     request: Request,
     response: Response,
-    idempotency_key: str = Header(
+    idempotency_key: uuid.UUID = Header(
         ...,
         alias="Idempotency-Key",
-        min_length=1,
-        max_length=64,
         description="Unique UUIDv4 idempotency key per client operation",
     ),
     current_user: User = Depends(require_customer),
@@ -57,7 +55,7 @@ def purchase_investment(
         investment, is_replay = InvestmentService.purchase_investment(
             db=db,
             caller_user_id=current_user.id,
-            idempotency_key=idempotency_key,
+            idempotency_key=str(idempotency_key),
             product_id=data.product_id,
             source_account_id=data.source_account_id,
             amount=data.amount,

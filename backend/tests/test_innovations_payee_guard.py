@@ -108,3 +108,59 @@ def test_payee_guard_insufficient_funds_rejection(client, db_session, sample_use
     resp = client.post("/api/v1/transfers/preview", json=payload, headers=headers)
     assert resp.status_code == 400
     assert "insufficient funds" in resp.json()["detail"].lower()
+
+
+def test_payee_guard_preview_resolves_account_number(client, db_session, sample_user, sample_customer, sample_account, auth_headers_factory):
+    """Customers know account numbers, not UUIDs: preview resolves the number to the authoritative account ID."""
+    dest_user = User(username="payee_by_number", email="payee_num@finledger.io", password_hash="x", role="CUSTOMER")
+    db_session.add(dest_user)
+    db_session.flush()
+    dest_cust = Customer(user_id=dest_user.id, full_name="Meera Iyer", kyc_status="VERIFIED")
+    db_session.add(dest_cust)
+    db_session.flush()
+    dest_acc = Account(
+        customer_id=dest_cust.id,
+        account_number="INR-SAV-NUM12345",
+        account_type="SAVINGS",
+        currency="INR",
+        cached_balance=Decimal("0.00"),
+        status="ACTIVE",
+    )
+    db_session.add(dest_acc)
+    db_session.commit()
+
+    payload = {
+        "source_account_id": str(sample_account.id),
+        "destination_account_number": " inr-sav-num12345 ",
+        "amount": "100.00",
+    }
+    resp = client.post("/api/v1/transfers/preview", json=payload, headers=auth_headers_factory(sample_user))
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["destination_account_id"] == str(dest_acc.id)
+    assert resp.json()["recipient_legal_name"] == "Meera Iyer"
+
+
+def test_payee_guard_preview_requires_exactly_one_destination(client, sample_user, sample_account, auth_headers_factory):
+    payload = {"source_account_id": str(sample_account.id), "amount": "100.00"}
+    resp = client.post("/api/v1/transfers/preview", json=payload, headers=auth_headers_factory(sample_user))
+    assert resp.status_code == 422
+
+
+def test_payee_guard_preview_rejects_investment_holding_destination(client, db_session, sample_user, sample_customer, sample_account, auth_headers_factory):
+    inv_acc = Account(
+        customer_id=sample_customer.id,
+        account_number="INR-INV-PREVIEW1",
+        account_type="INVESTMENT",
+        currency="INR",
+        cached_balance=Decimal("0.00"),
+        status="ACTIVE",
+    )
+    db_session.add(inv_acc)
+    db_session.commit()
+    payload = {
+        "source_account_id": str(sample_account.id),
+        "destination_account_id": str(inv_acc.id),
+        "amount": "100.00",
+    }
+    resp = client.post("/api/v1/transfers/preview", json=payload, headers=auth_headers_factory(sample_user))
+    assert resp.status_code == 400

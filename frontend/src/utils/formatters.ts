@@ -77,3 +77,16 @@ export function generateUUID(): string {
     return v.toString(16);
   });
 }
+
+/**
+ * Validate a typed rupee amount without going through floating point.
+ * Accepts digits with up to 2 decimals (commas ignored) and returns the canonical
+ * "1234.50" string the API expects, or null when invalid or not greater than zero.
+ */
+export function parseAmountInput(raw: string): string | null {
+  const s = raw.trim().replace(/,/g, '');
+  if (!/^\d{1,13}(\.\d{1,2})?$/.test(s)) return null;
+  const [whole, frac = ''] = s.split('.');
+  const canonical = `${whole.replace(/^0+(?=\d)/, '')}.${frac.padEnd(2, '0')}`;
+  return canonical === '0.00' ? null : canonical;
+}

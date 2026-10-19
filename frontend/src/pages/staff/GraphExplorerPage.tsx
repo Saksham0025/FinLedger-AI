@@ -1,12 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Badge } from '../../components/common/Badge';
+import { Button } from '../../components/common/Button';
+import { Card } from '../../components/common/Card';
+import { CurrencyDisplay } from '../../components/common/CurrencyDisplay';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import { ErrorBanner } from '../../components/common/ErrorBanner';
 import { graphApi } from '../../api/graph';
 import { GraphSubgraphResponse, GraphFindingResponse, GraphNode, GraphEdge } from '../../types/api';
 import { getErrorMessage } from '../../api/client';
-import { GitBranch, ShieldAlert, List, Eye } from 'lucide-react';
+import { formatDate } from '../../utils/formatters';
+import { List, Eye, Crosshair, X } from 'lucide-react';
+
+const SEVERITY_VARIANT: Record<string, 'danger' | 'warning' | 'info' | 'neutral'> = {
+  CRITICAL: 'danger',
+  HIGH: 'danger',
+  MEDIUM: 'warning',
+  LOW: 'info',
+};
+
+const PATTERN_HELP: Array<[string, string]> = [
+  ['Fan-in', 'Many different accounts send money into one account within a short window.'],
+  ['Rapid pass-through', 'Money arrives and is sent on again within hours, with little left behind.'],
+  ['Multi-hop layering', 'Funds move through a chain of accounts to obscure where they came from.'],
+  ['Circular flow', 'Money travels around a loop and returns to the account it started from.'],
+];
+
+type ReviewStatus = 'CLEARED' | 'CONFIRMED_FRAUD' | 'ESCALATED';
+
+const prettyPattern = (p: string) => p.replace(/_/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
 
 export const GraphExplorerPage: React.FC = () => {
   const [subgraph, setSubgraph] = useState<GraphSubgraphResponse | null>(null);
@@ -17,23 +39,27 @@ export const GraphExplorerPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
-  const [timeWindowHours, setTimeWindowHours] = useState<number>(72);
-  const [depth, setDepth] = useState<number>(2);
+  const [anchor, setAnchor] = useState<GraphNode | null>(null);
+  const [hops, setHops] = useState<number>(2);
+  const [limit, setLimit] = useState<number>(60);
+
+  const [reviewing, setReviewing] = useState<string | null>(null);
+  const [reviewStatus, setReviewStatus] = useState<ReviewStatus>('CLEARED');
+  const [reviewNotes, setReviewNotes] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   const fetchGraphData = async () => {
     setIsLoading(true);
     setError(null);
     try {
       const [graphData, findingsData] = await Promise.all([
-        graphApi.getSubgraph({ depth, time_window_hours: timeWindowHours }),
+        graphApi.getSubgraph({ account_id: anchor?.id, hops, limit }),
         graphApi.listFindings({ limit: 20 }),
       ]);
       setSubgraph(graphData);
       setFindings(findingsData);
-      if (graphData.nodes.length > 0) {
-        setSelectedNode(graphData.nodes[0]);
-      }
+      setSelectedEdge(null);
+      setSelectedNode(graphData.nodes.find((n) => n.id === anchor?.id) ?? graphData.nodes[0] ?? null);
     } catch (err: unknown) {
       setError(getErrorMessage(err));
     } finally {
@@ -43,81 +69,94 @@ export const GraphExplorerPage: React.FC = () => {
 
   useEffect(() => {
     fetchGraphData();
-  }, [timeWindowHours, depth]);
+  }, [anchor, hops, limit]);
 
-  // Compute 2D node layout positions for SVG visualization
-  const getNodeCoordinates = (nodes: GraphNode[], width = 600, height = 380) => {
-    const coords: Record<string, { x: number; y: number }> = {};
-    const count = nodes.length;
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const radius = Math.min(width, height) * 0.38;
-
-    nodes.forEach((node, index) => {
-      const angle = (2 * Math.PI * index) / (count || 1);
-      coords[node.id] = {
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle),
-      };
-    });
-    return coords;
+  const submitReview = async (findingId: string) => {
+    if (reviewNotes.trim().length < 3) {
+      setError('Add a short note (at least 3 characters) explaining the decision.');
+      return;
+    }
+    setIsSubmittingReview(true);
+    setError(null);
+    try {
+      const updated = await graphApi.reviewFinding(findingId, { review_status: reviewStatus, notes: reviewNotes.trim() });
+      setFindings((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+      setReviewing(null);
+      setReviewNotes('');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsSubmittingReview(false);
+    }
   };
 
-  const nodeCoords = subgraph ? getNodeCoordinates(subgraph.nodes) : {};
+  // Simple circular layout: deterministic and readable for the bounded neighbourhoods the API returns
+  const W = 600;
+  const H = 380;
+  const nodeCoords: Record<string, { x: number; y: number }> = {};
+  subgraph?.nodes.forEach((node, i, all) => {
+    const angle = (2 * Math.PI * i) / (all.length || 1) - Math.PI / 2;
+    const r = all.length === 1 ? 0 : Math.min(W, H) * 0.38;
+    nodeCoords[node.id] = { x: W / 2 + r * Math.cos(angle), y: H / 2 + r * Math.sin(angle) };
+  });
+  const accountNumber = (id: string) => subgraph?.nodes.find((n) => n.id === id)?.account_number ?? id.slice(0, 8);
+  const selectClass = 'bg-forensic-900 border border-forensic-700 rounded px-2.5 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500';
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <PageHeader
-        title="LedgerGraph: Temporal Money-Flow Network Explorer"
-        description="Deterministic graph pattern detection over PostgreSQL relational ledger data: Fan-In, Pass-Through, Multi-Hop, and Circular cycles."
+        title="LedgerGraph"
+        description="Money movements drawn as a network: accounts are points, posted transfers are arrows. Pattern findings are advisory and need a staff decision."
         action={
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setViewMode(viewMode === 'visual' ? 'table' : 'visual')}
-              className="px-3 py-1.5 rounded bg-[#121820] border border-[#222b38] text-xs text-slate-200 hover:bg-[#18202b] transition-colors flex items-center gap-1.5 font-mono"
-            >
-              {viewMode === 'visual' ? <List className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {viewMode === 'visual' ? 'Accessible Table View' : 'Visual Graph View'}
-            </button>
-          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setViewMode(viewMode === 'visual' ? 'table' : 'visual')}
+            leftIcon={viewMode === 'visual' ? <List className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          >
+            {viewMode === 'visual' ? 'Show as table' : 'Show as graph'}
+          </Button>
         }
       />
 
       {error && <ErrorBanner message={error} />}
 
-      {/* Filter Toolbar */}
-      <div className="p-3.5 rounded-xl bg-forensic-850 border border-forensic-700 flex flex-wrap items-center justify-between gap-3 text-xs font-mono shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sage-300 font-bold uppercase text-[10px]">Time Window:</span>
-            <select
-              value={timeWindowHours}
-              onChange={(e) => setTimeWindowHours(Number(e.target.value))}
-              className="bg-forensic-900 border border-forensic-700 rounded px-2.5 py-1 text-white focus:outline-none focus:border-forest-500 font-mono"
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
+        {anchor ? (
+          <span className="flex items-center gap-2 text-slate-300">
+            Centred on <span className="font-mono text-slate-100">{anchor.account_number}</span>
+            <button
+              type="button"
+              onClick={() => setAnchor(null)}
+              className="p-1 rounded text-slate-400 hover:text-white hover:bg-forensic-800"
+              aria-label="Show recent activity across all accounts"
             >
-              <option value={24}>Last 24 Hours</option>
-              <option value={72}>Last 72 Hours</option>
-              <option value={168}>Last 7 Days</option>
-              <option value={720}>Last 30 Days</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sage-300 font-bold uppercase text-[10px]">Hop Depth:</span>
-            <select
-              value={depth}
-              onChange={(e) => setDepth(Number(e.target.value))}
-              className="bg-forensic-900 border border-forensic-700 rounded px-2.5 py-1 text-white focus:outline-none focus:border-forest-500 font-mono"
-            >
-              <option value={1}>1 Hop (Direct Counterparties)</option>
-              <option value={2}>2 Hops (Layering Chains)</option>
-              <option value={3}>3 Hops (Extended Network)</option>
-            </select>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 text-sage-300 text-[11px] font-mono">
-          <span>Nodes: <strong className="text-white">{subgraph?.node_count || 0}</strong></span>
-          <span>Edges: <strong className="text-white">{subgraph?.edge_count || 0}</strong></span>
-        </div>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </span>
+        ) : (
+          <span className="text-slate-400">Showing the most recent posted transfers. Select an account to centre on it.</span>
+        )}
+        <label className="flex items-center gap-2 text-slate-300">
+          Hops
+          <select value={hops} onChange={(e) => setHops(Number(e.target.value))} className={selectClass} disabled={!anchor}>
+            <option value={1}>1, direct counterparties</option>
+            <option value={2}>2</option>
+            <option value={3}>3</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-slate-300">
+          Transfers
+          <select value={limit} onChange={(e) => setLimit(Number(e.target.value))} className={selectClass}>
+            <option value={20}>20</option>
+            <option value={60}>60</option>
+            <option value={100}>100</option>
+          </select>
+        </label>
+        <span className="text-slate-400 tabular-nums">
+          {subgraph?.nodes.length ?? 0} {subgraph?.nodes.length === 1 ? 'account' : 'accounts'},{' '}
+          {subgraph?.edges.length ?? 0} {subgraph?.edges.length === 1 ? 'transfer' : 'transfers'}
+        </span>
       </div>
 
       {isLoading ? (
@@ -126,249 +165,226 @@ export const GraphExplorerPage: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Visual or Table Area */}
-          <div className="lg:col-span-2 space-y-5">
-            <div className="bg-forensic-850 border border-forensic-700 rounded-xl overflow-hidden shadow-sm">
-              <div className="px-5 py-3 border-b border-forensic-700 bg-forensic-800 flex items-center justify-between text-xs font-mono">
-                <span className="font-bold text-white flex items-center gap-1.5 uppercase tracking-wider">
-                  <GitBranch className="w-3.5 h-3.5 text-emerald-400" />
-                  Network Money Movements
-                </span>
-                <span className="text-[10px] text-sage-300 font-mono">
-                  Point-In-Time Bounded Relational Graph
-                </span>
-              </div>
-
-              {viewMode === 'visual' ? (
-                <div className="p-4 flex items-center justify-center bg-forensic-950 min-h-[400px]">
-                  {subgraph && subgraph.nodes.length > 0 ? (
-                    <svg
-                      viewBox="0 0 600 380"
-                      className="w-full h-auto max-h-[420px] select-none"
-                    >
-                      <defs>
-                        <marker
-                          id="arrow"
-                          viewBox="0 0 10 10"
-                          refX="18"
-                          refY="5"
-                          markerWidth="6"
-                          markerHeight="6"
-                          orient="auto-start-reverse"
-                        >
-                          <path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981" />
-                        </marker>
-                      </defs>
-
-                      {/* Edges */}
-                      {subgraph.edges.map((edge) => {
-                        const src = nodeCoords[edge.source_account_id];
-                        const dst = nodeCoords[edge.destination_account_id];
-                        if (!src || !dst) return null;
-                        const isSelected = selectedEdge?.id === edge.id;
-                        return (
-                          <g key={edge.id} onClick={() => setSelectedEdge(edge)} className="cursor-pointer">
-                            <line
-                              x1={src.x}
-                              y1={src.y}
-                              x2={dst.x}
-                              y2={dst.y}
-                              stroke={isSelected ? '#34d399' : '#1D382D'}
-                              strokeWidth={isSelected ? 2.5 : 1.5}
-                              markerEnd="url(#arrow)"
-                              className="transition-colors hover:stroke-emerald-400"
-                            />
-                            <text
-                              x={(src.x + dst.x) / 2}
-                              y={(src.y + dst.y) / 2 - 4}
-                              fill="#9EB9A0"
-                              fontSize="9"
-                              textAnchor="middle"
-                              className="font-mono pointer-events-none"
-                            >
-                              ₹{parseFloat(edge.amount).toLocaleString('en-IN')}
-                            </text>
-                          </g>
-                        );
-                      })}
-
-                      {/* Nodes */}
-                      {subgraph.nodes.map((node) => {
-                        const pos = nodeCoords[node.id];
-                        if (!pos) return null;
-                        const isSelected = selectedNode?.id === node.id;
-                        return (
-                          <g
-                            key={node.id}
-                            transform={`translate(${pos.x}, ${pos.y})`}
-                            onClick={() => setSelectedNode(node)}
-                            className="cursor-pointer"
-                          >
-                            <circle
-                              r={isSelected ? 16 : 12}
-                              fill={isSelected ? '#206A4C' : '#0E1B15'}
-                              stroke={isSelected ? '#34d399' : '#25473A'}
-                              strokeWidth={isSelected ? 2.5 : 1.5}
-                              className="transition-all hover:stroke-emerald-400"
-                            />
-                            <text
-                              y={24}
-                              fill="#DCE8D8"
-                              fontSize="10"
-                              textAnchor="middle"
-                              className="font-mono font-medium pointer-events-none"
-                            >
-                              {node.account_number.replace('ACC-', '')}
-                            </text>
-                          </g>
-                        );
-                      })}
-                    </svg>
-                  ) : (
-                    <div className="text-center py-12 text-sage-400 text-xs font-mono">
-                      No transfer activity detected within the selected time window.
-                    </div>
-                  )}
-                </div>
+          <div className="lg:col-span-2 space-y-6">
+            <Card variant="forensic" title="Network">
+              {!subgraph || subgraph.nodes.length === 0 ? (
+                <p className="py-12 text-center text-sm text-slate-400">No posted transfers to draw yet.</p>
+              ) : viewMode === 'visual' ? (
+                <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto bg-forensic-950 rounded" role="img" aria-label="Money-flow network. Use the table view for an accessible list.">
+                  <defs>
+                    <marker id="arrow" viewBox="0 0 10 10" refX="20" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                      <path d="M 0 0 L 10 5 L 0 10 z" fill="#34d399" />
+                    </marker>
+                  </defs>
+                  {subgraph.edges.map((edge) => {
+                    const src = nodeCoords[edge.source];
+                    const dst = nodeCoords[edge.target];
+                    if (!src || !dst) return null;
+                    const isSelected = selectedEdge?.id === edge.id;
+                    return (
+                      <g key={edge.id} onClick={() => setSelectedEdge(edge)} className="cursor-pointer">
+                        <line x1={src.x} y1={src.y} x2={dst.x} y2={dst.y} stroke="transparent" strokeWidth={12} />
+                        <line
+                          x1={src.x}
+                          y1={src.y}
+                          x2={dst.x}
+                          y2={dst.y}
+                          stroke={isSelected ? '#34d399' : '#4CAE86'}
+                          strokeOpacity={isSelected ? 1 : 0.55}
+                          strokeWidth={isSelected ? 2.5 : 1.5}
+                          markerEnd="url(#arrow)"
+                        />
+                        <text x={(src.x + dst.x) / 2} y={(src.y + dst.y) / 2 - 6} fill="#C7D8BF" fontSize="11" textAnchor="middle" className="pointer-events-none">
+                          ₹{Number(edge.amount).toLocaleString('en-IN')}
+                        </text>
+                      </g>
+                    );
+                  })}
+                  {subgraph.nodes.map((node) => {
+                    const pos = nodeCoords[node.id];
+                    const isSelected = selectedNode?.id === node.id;
+                    return (
+                      <g key={node.id} transform={`translate(${pos.x}, ${pos.y})`} onClick={() => setSelectedNode(node)} className="cursor-pointer">
+                        <circle r={isSelected ? 15 : 11} fill={isSelected ? '#206A4C' : '#11221B'} stroke={isSelected ? '#34d399' : '#4CAE86'} strokeWidth={isSelected ? 2.5 : 1.5} />
+                        <text y={28} fill="#DCE8D8" fontSize="11" textAnchor="middle" className="pointer-events-none font-mono">
+                          {node.account_number.split('-').slice(-1)[0]}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
               ) : (
-                /* Accessible Table Alternative */
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs font-mono">
-                    <thead className="bg-forensic-900 border-b border-forensic-700 text-[10px] uppercase text-sage-300 text-left font-bold">
-                      <tr>
-                        <th className="p-2.5">Source Account</th>
-                        <th className="p-2.5">Destination Account</th>
-                        <th className="p-2.5 text-right">Amount (INR)</th>
-                        <th className="p-2.5">Timestamp</th>
+                <div className="overflow-x-auto -mx-4 sm:-mx-5 -mb-4 sm:-mb-5">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-slate-400 border-b border-forensic-700">
+                        <th scope="col" className="font-medium py-2 px-4 sm:px-5">From</th>
+                        <th scope="col" className="font-medium py-2 px-4">To</th>
+                        <th scope="col" className="font-medium py-2 px-4 text-right">Amount</th>
+                        <th scope="col" className="font-medium py-2 px-4 sm:px-5">Posted</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-forensic-750">
-                      {subgraph?.edges.map((e) => (
-                        <tr key={e.id} className="hover:bg-forensic-800/70 transition-colors">
-                          <td className="p-2.5 text-sage-200 truncate max-w-[140px]">{e.source_account_id}</td>
-                          <td className="p-2.5 text-sage-200 truncate max-w-[140px]">{e.destination_account_id}</td>
-                          <td className="p-2.5 text-right text-emerald-400 font-semibold tabular-nums">
-                            {parseFloat(e.amount).toLocaleString('en-IN', {
-                              style: 'currency',
-                              currency: 'INR',
-                            })}
+                    <tbody className="divide-y divide-forensic-700">
+                      {subgraph.edges.map((e) => (
+                        <tr key={e.id}>
+                          <td className="py-2.5 px-4 sm:px-5 font-mono text-xs text-slate-200">{accountNumber(e.source)}</td>
+                          <td className="py-2.5 px-4 font-mono text-xs text-slate-200">{accountNumber(e.target)}</td>
+                          <td className="py-2.5 px-4 text-right">
+                            <CurrencyDisplay amount={e.amount} size="sm" />
                           </td>
-                          <td className="p-2.5 text-sage-400 text-[10px]">
-                            {new Date(e.timestamp).toLocaleString('en-IN')}
-                          </td>
+                          <td className="py-2.5 px-4 sm:px-5 text-slate-400 whitespace-nowrap">{formatDate(e.created_at)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               )}
-            </div>
+            </Card>
 
-            {/* Pattern Findings Stream */}
-            <div className="bg-forensic-850 border border-forensic-700 rounded-xl p-5 space-y-3 font-mono shadow-sm">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2">
-                <ShieldAlert className="w-3.5 h-3.5 text-emerald-400" />
-                Detected Graph Patterns ({findings.length})
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {findings.map((f) => (
-                  <div
-                    key={f.id}
-                    className="p-3.5 rounded-lg bg-forensic-900 border border-forensic-700 text-xs space-y-1.5 shadow-xs"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-white">{f.pattern_type}</span>
-                      <Badge
-                        variant={f.severity === 'CRITICAL' ? 'danger' : f.severity === 'SUSPICIOUS' ? 'warning' : 'info'}
-                        size="sm"
-                      >
-                        {f.severity} ({f.heuristic_score})
-                      </Badge>
-                    </div>
-                    <p className="text-[11px] text-sage-300 leading-tight font-sans">{f.explanation}</p>
-                    <div className="flex items-center justify-between text-[10px] text-sage-400 pt-1">
-                      <span>Account: {f.primary_account_number || f.primary_account_id.slice(0, 8)}</span>
-                      <span>{new Date(f.created_at).toLocaleDateString('en-IN')}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <Card variant="forensic" title={`Pattern findings (${findings.length})`} subtitle="Raised by the deterministic LedgerGraph detectors. Each needs a staff decision.">
+              {findings.length === 0 ? (
+                <p className="py-6 text-center text-sm text-slate-400">
+                  No patterns found yet. Findings appear when transfers form fan-in, pass-through, layering or circular shapes.
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {findings.map((f) => (
+                    <li key={f.id} className="p-4 rounded-lg bg-forensic-900 border border-forensic-700 text-sm space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-semibold text-slate-100">{prettyPattern(f.pattern_type)}</span>
+                        <span className="flex items-center gap-2">
+                          <Badge variant={SEVERITY_VARIANT[f.severity] ?? 'neutral'} size="sm">
+                            {f.severity}
+                          </Badge>
+                          <span className="text-xs text-slate-400 tabular-nums">score {Number(f.heuristic_score).toFixed(2)}</span>
+                        </span>
+                      </div>
+                      <p className="text-slate-300 leading-relaxed">{f.explanation}</p>
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+                        <span>
+                          {f.involved_account_ids.length} accounts, {f.involved_transfer_ids.length} transfers, {formatDate(f.created_at)}
+                        </span>
+                        {f.review_status === 'PENDING' ? (
+                          reviewing !== f.id && (
+                            <Button variant="secondary" size="sm" onClick={() => { setReviewing(f.id); setReviewNotes(''); }}>
+                              Review
+                            </Button>
+                          )
+                        ) : (
+                          <Badge variant={f.review_status === 'CONFIRMED_FRAUD' ? 'danger' : f.review_status === 'ESCALATED' ? 'warning' : 'success'} size="sm">
+                            {prettyPattern(f.review_status)}
+                          </Badge>
+                        )}
+                      </div>
+                      {reviewing === f.id && (
+                        <div className="pt-3 mt-1 border-t border-forensic-700 space-y-2">
+                          <label className="block text-slate-300">
+                            Decision
+                            <select value={reviewStatus} onChange={(e) => setReviewStatus(e.target.value as ReviewStatus)} className={`${selectClass} block mt-1 w-full`}>
+                              <option value="CLEARED">Cleared, legitimate activity</option>
+                              <option value="ESCALATED">Escalate for further investigation</option>
+                              <option value="CONFIRMED_FRAUD">Confirmed fraud</option>
+                            </select>
+                          </label>
+                          <label className="block text-slate-300">
+                            Reason
+                            <textarea
+                              rows={2}
+                              value={reviewNotes}
+                              onChange={(e) => setReviewNotes(e.target.value)}
+                              className={`${selectClass} block mt-1 w-full resize-none`}
+                              placeholder="What did you check, and why this decision?"
+                            />
+                          </label>
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => setReviewing(null)}>
+                              Cancel
+                            </Button>
+                            <Button variant="primary" size="sm" isLoading={isSubmittingReview} onClick={() => submitReview(f.id)}>
+                              Record decision
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
           </div>
 
-          {/* Details Sidebar */}
-          <div className="lg:col-span-1 space-y-5 font-mono">
+          <div className="space-y-6">
             {selectedNode && (
-              <div className="bg-forensic-850 border border-forensic-700 rounded-xl p-5 space-y-3 shadow-sm">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-sage-300">
-                  Inspected Account Node
-                </h4>
-                <div className="space-y-2.5 text-xs">
-                  <div className="p-3 rounded-lg bg-forensic-900 border border-forensic-700">
-                    <span className="text-[10px] text-sage-400 block uppercase font-bold">Account Number</span>
-                    <span className="text-sm font-semibold text-white font-mono">{selectedNode.account_number}</span>
+              <Card variant="forensic" title="Account">
+                <dl className="space-y-2 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-400">Number</dt>
+                    <dd className="font-mono text-slate-100">{selectedNode.account_number}</dd>
                   </div>
-                  <div className="p-3 rounded-lg bg-forensic-900 border border-forensic-700">
-                    <span className="text-[10px] text-sage-400 block uppercase font-bold">Account Holder</span>
-                    <span className="font-semibold text-sage-100 font-sans">{selectedNode.customer_name}</span>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-400">Holder</dt>
+                    <dd className="text-slate-100 text-right">{selectedNode.customer_name}</dd>
                   </div>
-                  <div className="p-3 rounded-lg bg-forensic-900 border border-forensic-700">
-                    <span className="text-[10px] text-sage-400 block uppercase font-bold">Type & Status</span>
-                    <span className="text-white">{selectedNode.account_type} • {selectedNode.status}</span>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-400">Type</dt>
+                    <dd className="text-slate-100">{prettyPattern(selectedNode.account_type)}, {selectedNode.status.toLowerCase()}</dd>
                   </div>
-                </div>
-              </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-400">Balance</dt>
+                    <dd>
+                      <CurrencyDisplay amount={selectedNode.cached_balance} size="sm" />
+                    </dd>
+                  </div>
+                </dl>
+                {anchor?.id !== selectedNode.id && (
+                  <Button variant="secondary" size="sm" className="mt-4 w-full" leftIcon={<Crosshair className="w-3.5 h-3.5" />} onClick={() => setAnchor(selectedNode)}>
+                    Centre the graph on this account
+                  </Button>
+                )}
+              </Card>
             )}
 
             {selectedEdge && (
-              <div className="bg-forensic-850 border border-forensic-700 rounded-xl p-5 space-y-3 shadow-sm">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-sage-300">
-                  Inspected Transfer Edge
-                </h4>
-                <div className="space-y-2.5 text-xs">
-                  <div className="p-3 rounded-lg bg-forensic-900 border border-forensic-700">
-                    <span className="text-[10px] text-sage-400 block uppercase font-bold">Transfer Amount</span>
-                    <span className="text-base font-bold text-emerald-400 tabular-nums">
-                      {parseFloat(selectedEdge.amount).toLocaleString('en-IN', {
-                        style: 'currency',
-                        currency: 'INR',
-                      })}
-                    </span>
+              <Card variant="forensic" title="Transfer">
+                <dl className="space-y-2 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-400">Amount</dt>
+                    <dd>
+                      <CurrencyDisplay amount={selectedEdge.amount} size="md" />
+                    </dd>
                   </div>
-                  <div className="p-3 rounded-lg bg-forensic-900 border border-forensic-700">
-                    <span className="text-[10px] text-sage-400 block uppercase font-bold">Transfer Reference</span>
-                    <span className="text-xs text-sage-200 truncate block font-mono">{selectedEdge.transfer_id}</span>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-400">From</dt>
+                    <dd className="font-mono text-xs text-slate-100">{accountNumber(selectedEdge.source)}</dd>
                   </div>
-                  <div className="p-3 rounded-lg bg-forensic-900 border border-forensic-700">
-                    <span className="text-[10px] text-sage-400 block uppercase font-bold">Posted Timestamp</span>
-                    <span className="text-sage-300 text-xs">
-                      {new Date(selectedEdge.timestamp).toLocaleString('en-IN')}
-                    </span>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-400">To</dt>
+                    <dd className="font-mono text-xs text-slate-100">{accountNumber(selectedEdge.target)}</dd>
                   </div>
-                </div>
-              </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-400">Posted</dt>
+                    <dd className="text-slate-100">{formatDate(selectedEdge.created_at)}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-400">Reference</dt>
+                    <dd className="font-mono text-xs text-slate-300 truncate max-w-[160px]" title={selectedEdge.id}>
+                      {selectedEdge.id}
+                    </dd>
+                  </div>
+                </dl>
+              </Card>
             )}
 
-            {/* Pattern Catalog Reference */}
-            <div className="bg-forensic-850 border border-forensic-700 rounded-xl p-5 space-y-3 shadow-sm">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-sage-300">
-                Pattern Detector Semantics
-              </h4>
-              <div className="text-[11px] text-sage-300 space-y-2.5 leading-relaxed">
-                <div>
-                  <strong className="text-white block font-mono">FAN-IN:</strong>
-                  Multiple distinct origin accounts funnel funds into one target account within 24h.
-                </div>
-                <div>
-                  <strong className="text-white block font-mono">RAPID PASS-THROUGH:</strong>
-                  Funds credited and onward forwarded within 4 hours with minimal delta.
-                </div>
-                <div>
-                  <strong className="text-white block font-mono">CIRCULAR WASH:</strong>
-                  Bounded closed-loop cycles returning money to an originating account.
-                </div>
-              </div>
-            </div>
+            <Card variant="forensic" title="What the detectors look for">
+              <dl className="space-y-3 text-sm">
+                {PATTERN_HELP.map(([name, help]) => (
+                  <div key={name}>
+                    <dt className="font-semibold text-slate-100">{name}</dt>
+                    <dd className="text-slate-400 leading-relaxed">{help}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Card>
           </div>
         </div>
       )}

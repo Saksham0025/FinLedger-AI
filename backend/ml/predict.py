@@ -246,7 +246,7 @@ class FraudDetector:
                     independent_txn=True,
                 )
             except Exception:
-                pass
+                logger.exception("Could not audit fraud scoring failure for transfer %s", transfer.id)
             return None
 
 

@@ -19,14 +19,9 @@ export const ErrorBanner: React.FC<ErrorBannerProps> = ({
     >
       <div className="flex items-start gap-3">
         <AlertCircle className="w-5 h-5 text-rose-600 [.theme-forensic_&]:text-rose-400 shrink-0 mt-0.5" />
-        <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-rose-800 [.theme-forensic_&]:text-rose-300">
-            System Notice
-          </h4>
-          <p className="text-xs text-rose-700 [.theme-forensic_&]:text-rose-200/90 mt-0.5 font-sans">
-            {message}
-          </p>
-        </div>
+        <p role="alert" className="text-sm text-rose-800 [.theme-forensic_&]:text-rose-200 font-sans">
+          {message}
+        </p>
       </div>
       {onRetry && (
         <Button

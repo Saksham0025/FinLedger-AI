@@ -39,11 +39,28 @@ class PayeeGuardService:
         db: Session,
         caller_user_id: uuid.UUID,
         source_account_id: uuid.UUID,
-        destination_account_id: uuid.UUID,
+        destination_account_id: uuid.UUID | None,
         amount: Decimal,
         is_staff: bool = False,
+        destination_account_number: str | None = None,
     ) -> Dict[str, Any]:
-        """Perform authoritative pre-submission beneficiary verification and safety checks."""
+        """Perform authoritative pre-submission beneficiary verification and safety checks.
+
+        The recipient may be given by account ID or by account number (case-insensitive);
+        the response always carries the resolved authoritative destination_account_id.
+        """
+        # 0. Resolve a human-entered account number to the authoritative account
+        if destination_account_id is None:
+            number = (destination_account_number or "").strip().upper()
+            destination_account_id = db.scalars(
+                select(Account.id).where(Account.account_number == number)
+            ).first()
+            if destination_account_id is None:
+                raise PayeeGuardError(
+                    "No account found with that account number. Check it and try again.",
+                    status_code=404,
+                )
+
         # 1. Structural checks
         if source_account_id == destination_account_id:
             raise PayeeGuardError("Source and destination accounts must be distinct", status_code=400)
@@ -89,6 +106,12 @@ class PayeeGuardService:
         if dest_acc.account_type == "INTERNAL_CLEARING":
             raise PayeeGuardError(
                 "Direct transfers to internal clearing accounts are prohibited",
+                status_code=400,
+            )
+
+        if "INVESTMENT" in (source_acc.account_type, dest_acc.account_type):
+            raise PayeeGuardError(
+                "Investment holding accounts cannot be used in transfers; use the investment endpoints",
                 status_code=400,
             )
 

@@ -26,7 +26,7 @@ app = FastAPI(
 # Configure Cross-Origin Resource Sharing (CORS)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.DEBUG else ["http://localhost:5173"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

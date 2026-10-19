@@ -82,5 +82,10 @@ def seed_system_clearing_account():
 
 
 if __name__ == "__main__":
-    create_databases_if_missing()
-    seed_system_clearing_account()
+    # Fresh machines must migrate between these steps: seeding needs the accounts table.
+    #   --create-only: create finledger / finledger_test databases
+    #   --seed-only:   seed INR-SYS-CLEARING (after `alembic upgrade head`)
+    if "--seed-only" not in sys.argv:
+        create_databases_if_missing()
+    if "--create-only" not in sys.argv:
+        seed_system_clearing_account()

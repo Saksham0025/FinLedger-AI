@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, and_, desc
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_current_user, require_staff
 from app.models.user import User
 from app.models.account import Account
 from app.models.transfer import TransferRequest
@@ -49,7 +49,17 @@ def create_dispute(
             detail="Transfer record not found",
         )
 
-    customer_id = current_user.customer.id if current_user.customer else transfer.source_user.customer.id
+    if current_user.customer:
+        customer_id = current_user.customer.id
+    else:
+        # Staff filing on a customer's behalf: the disputing customer owns the debited (or credited) account
+        party_accounts = [db.get(Account, transfer.source_account_id), db.get(Account, transfer.destination_account_id)]
+        customer_id = next((acc.customer_id for acc in party_accounts if acc and acc.customer_id), None)
+        if customer_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Transfer has no customer-owned account to attach a dispute to",
+            )
 
     if current_user.role not in ("STAFF", "ADMIN"):
         # Verify customer initiated this transfer or owns the source/destination account
@@ -182,12 +192,10 @@ def get_dispute(
 def update_dispute_status(
     dispute_id: uuid.UUID,
     data: DisputeStatusUpdateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_staff),
     db: Session = Depends(get_db),
 ):
     """Staff updates investigation status with required explanatory notes."""
-    if current_user.role not in ("STAFF", "ADMIN"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
 
     stmt = select(Dispute).where(Dispute.id == dispute_id).options(joinedload(Dispute.events))
     dispute = db.scalars(stmt).unique().first()
