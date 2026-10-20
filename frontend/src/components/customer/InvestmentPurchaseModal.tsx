@@ -3,12 +3,11 @@ import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { CurrencyDisplay } from '../common/CurrencyDisplay';
 import { ErrorBanner } from '../common/ErrorBanner';
-import { Badge } from '../common/Badge';
 import { Account, FinancialProduct, Investment } from '../../types/api';
 import { investmentsApi } from '../../api/investments';
-import { formatPercent, generateUUID } from '../../utils/formatters';
-import { getErrorMessage } from '../../api/client';
-import { CheckCircle2, Sparkles, RefreshCw, Lock } from 'lucide-react';
+import { formatINR, formatPercent, generateUUID, parseAmountInput } from '../../utils/formatters';
+import { getErrorMessage, isDefinitiveRejection } from '../../api/client';
+import { CheckCircle2 } from 'lucide-react';
 
 interface InvestmentPurchaseModalProps {
   isOpen: boolean;
@@ -18,6 +17,16 @@ interface InvestmentPurchaseModalProps {
   onPurchaseSuccess?: () => void;
 }
 
+const PRODUCT_TYPE_LABELS: Record<string, string> = {
+  FIXED_DEPOSIT: 'Fixed deposit',
+  RECURRING_DEPOSIT: 'Recurring deposit',
+  MUTUAL_FUND: 'Mutual fund',
+  TREASURY_BILL: 'Treasury bill',
+};
+
+const inputClass =
+  'w-full bg-surface border border-hairline rounded px-3 py-2 text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 transition-colors';
+
 export const InvestmentPurchaseModal: React.FC<InvestmentPurchaseModalProps> = ({
   isOpen,
   onClose,
@@ -25,12 +34,11 @@ export const InvestmentPurchaseModal: React.FC<InvestmentPurchaseModalProps> = (
   accounts,
   onPurchaseSuccess,
 }) => {
-  const eligibleSources = accounts.filter(
-    (a) => a.status === 'ACTIVE' && a.account_type === 'SAVINGS'
-  );
+  const eligibleSources = accounts.filter((a) => a.status === 'ACTIVE' && a.account_type === 'SAVINGS');
 
   const [sourceAccountId, setSourceAccountId] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
+  // One key per purchase attempt: a replay returns the original investment instead of buying twice
   const [idempotencyKey, setIdempotencyKey] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,45 +56,35 @@ export const InvestmentPurchaseModal: React.FC<InvestmentPurchaseModalProps> = (
     }
   }, [isOpen, product]);
 
-  const selectedSource = accounts.find((a) => a.id === sourceAccountId);
-
   const handlePurchase = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!product) return;
 
     setError(null);
-    const parsedAmount = parseFloat(amount);
-    const minAmount = parseFloat(String(product.min_amount));
-
-    if (isNaN(parsedAmount) || parsedAmount < minAmount) {
-      setError(`Minimum investment amount is ₹${minAmount.toLocaleString('en-IN')}`);
+    const canonical = parseAmountInput(amount);
+    if (!canonical || Number(canonical) < Number(product.min_amount)) {
+      setError(`Enter at least ${formatINR(product.min_amount)}, with at most two decimal places.`);
       return;
     }
-
     if (!sourceAccountId) {
-      setError('Please select a funding savings account');
-      return;
-    }
-
-    if (selectedSource && parsedAmount > parseFloat(String(selectedSource.cached_balance))) {
-      setError('Insufficient funds in selected savings account');
+      setError('Choose the savings account to pay from.');
       return;
     }
 
     setIsLoading(true);
     try {
       const inv = await investmentsApi.purchaseInvestment(
-        {
-          product_id: product.id,
-          source_account_id: sourceAccountId,
-          amount: parsedAmount.toFixed(2),
-        },
+        { product_id: product.id, source_account_id: sourceAccountId, amount: canonical },
         idempotencyKey
       );
       setResult(inv);
       onPurchaseSuccess?.();
     } catch (err: unknown) {
       setError(getErrorMessage(err));
+      // Rejected attempts are recorded under their key; ambiguous failures keep it so retrying stays safe
+      if (isDefinitiveRejection(err)) {
+        setIdempotencyKey(generateUUID());
+      }
     } finally {
       setIsLoading(false);
     }
@@ -104,167 +102,119 @@ export const InvestmentPurchaseModal: React.FC<InvestmentPurchaseModalProps> = (
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={result ? 'Subscription Receipt' : `Subscribe to ${product.name}`}
+      title={result ? 'Investment confirmed' : `Invest in ${product.name}`}
       description={
         result
-          ? 'Investment contract activated and double-entry ledger postings committed.'
-          : 'Simulated financial asset subscription with automated yield tracking.'
+          ? 'The money moved from your savings into your investment holding account in one ledger transaction.'
+          : `${formatPercent(product.annual_yield_rate)} a year for ${product.term_months} months.`
       }
       maxWidth="lg"
     >
       {error && <ErrorBanner message={error} className="mb-4" />}
 
       {result ? (
-        <div className="space-y-4 font-mono">
-          <div className="p-5 rounded-md bg-forest-50 border border-forest-200 text-forest-900 flex flex-col items-center gap-2 text-center">
-            <CheckCircle2 className="w-8 h-8 text-forest-700" />
-            <h4 className="text-sm font-bold uppercase tracking-wider text-forest-900 font-mono">
-              Subscription Successfully Activated
-            </h4>
-            <div className="mt-1">
-              <CurrencyDisplay amount={result.invested_amount} size="2xl" colored className="font-bold tabular-nums" />
-            </div>
-            <p className="text-xs text-forest-700 font-sans max-w-sm mt-0.5">
-              Principal debited and mirrored into dedicated investment holding ledger.
-            </p>
+        <div className="space-y-4">
+          <div className="p-6 rounded-md ledger-hero-green flex flex-col items-center gap-2 text-center">
+            <CheckCircle2 className="w-8 h-8 text-forest-300" aria-hidden="true" />
+            <CurrencyDisplay amount={result.invested_amount} size="2xl" className="text-white" />
+            <p className="text-sm text-sage-100">invested in {product.name}</p>
           </div>
 
-          <div className="p-4 rounded-md bg-paper-50 border border-hairline space-y-2.5 text-xs">
-            <div className="flex justify-between">
-              <span className="text-ink-500 font-sans">Position ID</span>
-              <span className="text-ink-900 font-semibold">{result.id}</span>
+          <dl className="p-4 rounded-md bg-surface border border-hairline space-y-2 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-600">Reference</dt>
+              <dd className="font-mono text-xs text-ink-950 truncate max-w-[260px]" title={result.id}>
+                {result.id}
+              </dd>
             </div>
-            <div className="flex justify-between">
-              <span className="text-ink-500 font-sans">Instrument</span>
-              <span className="text-ink-900 font-sans font-medium">{product.name} ({product.code})</span>
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-600">Annual yield</dt>
+              <dd className="text-forest-800 font-semibold tabular-nums">{formatPercent(product.annual_yield_rate)}</dd>
             </div>
-            <div className="flex justify-between">
-              <span className="text-ink-500 font-sans">Guaranteed Yield</span>
-              <span className="text-forest-700 font-bold tabular-nums">
-                {formatPercent(product.annual_yield_rate)} p.a.
-              </span>
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-600">Status</dt>
+              <dd className="text-forest-800 font-semibold">{result.status === 'ACTIVE' ? 'Active' : result.status}</dd>
             </div>
-            <div className="flex justify-between">
-              <span className="text-ink-500 font-sans">Status</span>
-              <Badge variant="success" size="sm">
-                {result.status}
-              </Badge>
-            </div>
-          </div>
+          </dl>
 
-          <div className="pt-3 border-t border-hairline flex justify-end font-sans">
-            <Button variant="primary" onClick={handleClose}>
-              View in Portfolio
+          <div className="pt-3 border-t border-hairline flex justify-end">
+            <Button variant="primary" size="sm" onClick={handleClose}>
+              Done
             </Button>
           </div>
         </div>
       ) : (
-        <form onSubmit={handlePurchase} className="space-y-4 font-mono">
-          <div className="p-4 rounded-md bg-paper-50 border border-hairline space-y-2.5 text-xs">
-            <div className="flex justify-between items-center">
-              <span className="text-ink-500 font-sans">Product Identifier</span>
-              <span className="text-ink-900 font-semibold">{product.code}</span>
+        <form onSubmit={handlePurchase} noValidate className="space-y-4">
+          <dl className="p-4 rounded-md bg-surface border border-hairline space-y-1.5 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-600">Product</dt>
+              <dd className="text-ink-950">
+                {PRODUCT_TYPE_LABELS[product.product_type] ?? product.product_type}{' '}
+                <span className="font-mono text-xs text-ink-500">{product.code}</span>
+              </dd>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-ink-500 font-sans">Category</span>
-              <Badge variant="info" size="sm">
-                {product.product_type}
-              </Badge>
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-600">Minimum</dt>
+              <dd>
+                <CurrencyDisplay amount={product.min_amount} size="sm" />
+              </dd>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-ink-500 font-sans">Annual Yield Rate</span>
-              <span className="text-forest-700 font-bold tabular-nums">
-                {formatPercent(product.annual_yield_rate)} p.a.
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-ink-500 font-sans">Term Duration</span>
-              <span className="text-ink-900 font-semibold">{product.term_months} Months</span>
-            </div>
-          </div>
+          </dl>
 
           <div>
-            <label className="block text-xs font-semibold text-ink-900 uppercase tracking-wider mb-1 font-mono">
-              Source Funding Account (Savings)
+            <label htmlFor="invest-source" className="block text-sm font-medium text-ink-800 mb-1">
+              Pay from
             </label>
-            <select
-              value={sourceAccountId}
-              onChange={(e) => setSourceAccountId(e.target.value)}
-              className="w-full bg-paper-50 border border-hairline rounded px-3 py-2 text-xs font-mono text-ink-950 focus:outline-none focus:border-forest-600 focus:bg-surface"
-              required
-            >
-              {eligibleSources.map((acc) => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.account_number} — Available:{' '}
-                  {parseFloat(String(acc.cached_balance)).toLocaleString('en-IN', {
-                    style: 'currency',
-                    currency: 'INR',
-                  })}
-                </option>
-              ))}
-            </select>
-            {selectedSource && (
-              <div className="text-[11px] font-mono text-ink-500 mt-1.5 flex justify-between">
-                <span>Account ID: {selectedSource.id}</span>
-                <span className="flex items-center gap-1">
-                  Available:{' '}
-                  <CurrencyDisplay amount={selectedSource.cached_balance} size="sm" className="font-semibold text-ink-900" />
-                </span>
-              </div>
+            {eligibleSources.length === 0 ? (
+              <p className="text-sm text-ink-600">Open a savings account and add a deposit first.</p>
+            ) : (
+              <select
+                id="invest-source"
+                value={sourceAccountId}
+                onChange={(e) => setSourceAccountId(e.target.value)}
+                className={inputClass}
+                required
+              >
+                {eligibleSources.map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.account_number}, available {formatINR(acc.cached_balance)}
+                  </option>
+                ))}
+              </select>
             )}
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-ink-900 uppercase tracking-wider mb-1 font-mono">
-              Investment Principal (Min: ₹{parseFloat(String(product.min_amount)).toLocaleString('en-IN')})
+            <label htmlFor="invest-amount" className="block text-sm font-medium text-ink-800 mb-1">
+              Amount
             </label>
             <div className="relative">
-              <span className="absolute left-3.5 top-2 text-ink-400 font-mono text-xs">₹</span>
+              <span className="absolute left-3 top-2 text-ink-500 text-sm" aria-hidden="true">₹</span>
               <input
-                type="number"
-                step="0.01"
-                min={parseFloat(String(product.min_amount))}
+                id="invest-amount"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-                className="w-full bg-paper-50 border border-hairline rounded pl-8 pr-3 py-2 text-xs font-mono text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-600 focus:bg-surface transition-colors tabular-nums font-semibold"
+                className={`${inputClass} pl-7 tabular-nums`}
                 required
               />
             </div>
           </div>
 
-          <div className="p-3 rounded-md bg-paper-50 border border-hairline text-[11px] text-ink-600 flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-forest-700 shrink-0" />
-              Idempotency Protected
-            </span>
-            <span className="font-mono text-ink-800 truncate max-w-[160px]">{idempotencyKey}</span>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-hairline font-sans">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-hairline">
             <Button variant="secondary" size="sm" type="button" onClick={handleClose}>
               Cancel
             </Button>
-            {error && (
-              <Button
-                variant="outline"
-                size="sm"
-                type="button"
-                onClick={handlePurchase}
-                isLoading={isLoading}
-                leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-              >
-                Retry
-              </Button>
-            )}
             <Button
               variant="primary"
               size="sm"
               type="submit"
               isLoading={isLoading}
-              leftIcon={<Sparkles className="w-3.5 h-3.5" />}
+              disabled={eligibleSources.length === 0}
             >
-              Subscribe Position
+              {error ? 'Try again' : 'Invest'}
             </Button>
           </div>
         </form>

@@ -18,7 +18,9 @@ from ml.predict import FraudDetector, DECISION_LOW_RISK, DECISION_HIGH_RISK
 
 def test_train_pipeline_and_artifacts(tmp_path):
     """Verify training pipeline trains and persists compatible model artifacts."""
+    # Keep generated data inside tmp_path: never write into the real ml/data directory
     pipeline, metadata = train_model(
+        data_path=tmp_path / "synthetic_transactions.csv",
         output_dir=tmp_path,
         random_seed=42,
         num_samples_if_missing=500,
@@ -37,9 +39,10 @@ def test_train_pipeline_and_artifacts(tmp_path):
 def test_evaluation_metrics_reporting(tmp_path):
     """Verify evaluation generates report comparing Rule Baseline vs ML on held-out data."""
     # Ensure artifacts exist
-    train_model(output_dir=tmp_path, random_seed=42, num_samples_if_missing=500)
+    data_path = tmp_path / "synthetic_transactions.csv"
+    train_model(data_path=data_path, output_dir=tmp_path, random_seed=42, num_samples_if_missing=500)
 
-    report = evaluate_test_split(artifacts_dir=tmp_path)
+    report = evaluate_test_split(data_path=data_path, artifacts_dir=tmp_path)
 
     assert "machine_learning_model" in report
     assert "rule_based_baseline" in report

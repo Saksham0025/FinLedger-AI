@@ -11,7 +11,7 @@ describe('Innovation UI Components', () => {
     const handleClose = vi.fn();
     const handleCreated = vi.fn();
 
-    vi.spyOn(disputesApi, 'createDispute').mockResolvedValue({
+    const createSpy = vi.spyOn(disputesApi, 'createDispute').mockResolvedValue({
       id: 'disp-test-1',
       customer_id: 'cust-1',
       transfer_request_id: 'tx-123',
@@ -19,7 +19,6 @@ describe('Innovation UI Components', () => {
       description: 'Unrecognized ATM debit',
       status: 'OPEN',
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
       events: [],
     });
 
@@ -32,19 +31,31 @@ describe('Innovation UI Components', () => {
       />
     );
 
-    expect(screen.getByText(/File Transaction Dispute/i)).toBeInTheDocument();
+    expect(screen.getByText(/Dispute a transfer/i)).toBeInTheDocument();
     expect(screen.getByText('tx-123')).toBeInTheDocument();
 
-    const desc = screen.getByPlaceholderText(/Explain the circumstances/i);
-    fireEvent.change(desc, { target: { value: 'Unauthorized fund transfer from unrecognized device.' } });
+    const desc = screen.getByLabelText(/What happened\?/i);
+    const submitBtn = screen.getByRole('button', { name: /Open dispute/i });
 
-    const submitBtn = screen.getByRole('button', { name: /Submit Recourse Inquiry/i });
+    // Backend requires at least 10 characters; the form says so before calling the API
+    fireEvent.change(desc, { target: { value: 'too short' } });
+    fireEvent.click(submitBtn);
+    expect(await screen.findByText(/at least 10 characters/i)).toBeInTheDocument();
+    expect(createSpy).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/What's the problem\?/i), { target: { value: 'SUSPECTED_FRAUD' } });
+    fireEvent.change(desc, { target: { value: 'Unauthorized fund transfer from unrecognized device.' } });
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/Recourse Inquiry Filed/i)).toBeInTheDocument();
-      expect(screen.getByText(/Inquiry Case Opened/i)).toBeInTheDocument();
+      expect(screen.getByText(/Dispute opened/i)).toBeInTheDocument();
     });
+    expect(createSpy).toHaveBeenCalledWith({
+      transfer_request_id: 'tx-123',
+      category: 'SUSPECTED_FRAUD',
+      description: 'Unauthorized fund transfer from unrecognized device.',
+    });
+    expect(handleCreated).toHaveBeenCalled();
   });
 
   it('renders ForensicDossierDrawer with double-entry legs and evidentiary timeline', async () => {
@@ -72,6 +83,22 @@ describe('Innovation UI Components', () => {
         currency: 'INR',
         status: 'POSTED',
         created_at: new Date().toISOString(),
+      },
+      source_account: {
+        id: 'acc-src-1',
+        account_number: 'ACC-SAV-111111',
+        account_type: 'SAVINGS',
+        cached_balance: '5000.00',
+        customer_legal_name: 'Aarav Sharma',
+        status: 'ACTIVE',
+      },
+      destination_account: {
+        id: 'acc-dst-1',
+        account_number: 'ACC-SAV-222222',
+        account_type: 'SAVINGS',
+        cached_balance: '45000.00',
+        customer_legal_name: 'Meera Iyer',
+        status: 'ACTIVE',
       },
       ledger_entries: [
         {
@@ -104,21 +131,24 @@ describe('Innovation UI Components', () => {
         },
       ],
       investigation_notes: [],
-      audit_logs: [],
+      audit_events: [
+        { id: '7', action: 'TRANSFER_POSTED', entity_type: 'TRANSFER', created_at: new Date().toISOString(), metadata: {} },
+      ],
+      disputes: [],
       timeline: [
         {
           timestamp: new Date().toISOString(),
-          event: 'Transfer Posted',
           category: 'FACT',
-          source_ref: 'tx-1',
-          description: 'Amount ₹45,000 posted in PostgreSQL ledger.',
+          title: 'Transfer Posted',
+          detail: 'Amount ₹45,000 posted in PostgreSQL ledger.',
+          evidence_ref: 'transfer_request:tx-1',
         },
         {
           timestamp: new Date().toISOString(),
-          event: 'Random Forest Inference',
           category: 'STATISTICAL_MODEL',
-          source_ref: 'model-v1',
-          description: 'Risk score evaluated as 0.9200.',
+          title: 'Random Forest Inference',
+          detail: 'Risk score evaluated as 0.9200.',
+          evidence_ref: 'model:rf-v1.0.0',
         },
       ],
     };
@@ -136,9 +166,11 @@ describe('Innovation UI Components', () => {
     await waitFor(() => {
       expect(screen.getByText(/Forensic Investigation Dossier/i)).toBeInTheDocument();
       expect(screen.getByText('0.9200')).toBeInTheDocument();
-      expect(screen.getByText('ACC-SAV-111111')).toBeInTheDocument();
-      expect(screen.getByText('ACC-SAV-222222')).toBeInTheDocument();
-      expect(screen.getByText('RAPID_PASS_THROUGH')).toBeInTheDocument();
+      expect(screen.getAllByText('ACC-SAV-111111').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('ACC-SAV-222222').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText(/Rapid pass through/i)).toBeInTheDocument();
+      expect(screen.getByText('Random Forest Inference')).toBeInTheDocument();
+      expect(screen.getByText('TRANSFER_POSTED')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Commit Determination/i })).toBeInTheDocument();
     });
   });

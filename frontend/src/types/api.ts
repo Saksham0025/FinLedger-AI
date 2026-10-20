@@ -61,10 +61,16 @@ export interface TransferRequest {
   destination_account_id: string;
   amount: string | number;
   currency: 'INR';
-  status: 'POSTED' | 'FAILED';
+  status: 'POSTED' | 'FAILED' | 'REVERSED';
   failure_reason?: string | null;
   created_at: string;
   posted_at?: string | null;
+}
+
+// Mirrors backend TransferHistoryItem: GET /api/v1/transfers
+export interface TransferHistoryItem extends TransferRequest {
+  source_account_number: string;
+  destination_account_number: string;
 }
 
 export type ProductType = 'FIXED_DEPOSIT' | 'RECURRING_DEPOSIT' | 'MUTUAL_FUND' | 'TREASURY_BILL';
@@ -215,76 +221,73 @@ export interface DailyVolumeItem {
   total_day_volume: string | number;
 }
 
+// Mirrors backend DailyVolumeResponse (app/schemas/report.py)
 export interface DailyVolumeReport {
-  window_days: number;
-  records: DailyVolumeItem[];
-  total_window_transfers_count: number;
-  total_window_transfers_volume: string | number;
-  total_window_investments_count: number;
-  total_window_investments_volume: string | number;
+  timestamp: string;
+  daily_records: DailyVolumeItem[];
 }
 
-export interface BalanceDistributionTier {
-  tier_name: string;
-  range_label: string;
-  account_count: number;
-  percentage_of_accounts: string | number;
-  total_balance_volume: string | number;
-}
 
+// Mirrors backend BalanceDistributionResponse (app/schemas/report.py)
 export interface BalanceDistributionReport {
   timestamp: string;
-  tiers: BalanceDistributionTier[];
-  total_customer_accounts: number;
-  total_customer_funds: string | number;
+  total_accounts: number;
+  system_clearing_balance: string | number;
+  total_customer_liabilities: string | number;
+  tier_under_1k_count: number;
+  tier_1k_to_10k_count: number;
+  tier_10k_to_50k_count: number;
+  tier_50k_to_100k_count: number;
+  tier_above_100k_count: number;
 }
 
 // ==========================================
 // INNOVATION A: LedgerGraph Types
-// ==========================================
+// Mirrors backend SubgraphNode / SubgraphEdge / SubgraphResponse (app/schemas/graph.py)
 export interface GraphNode {
   id: string;
   account_number: string;
   account_type: string;
+  cached_balance: string;
   customer_name: string;
   status: string;
 }
 
 export interface GraphEdge {
-  id: string;
-  source_account_id: string;
-  destination_account_id: string;
-  transfer_id: string;
+  id: string; // transfer id
+  source: string; // source account id
+  target: string; // destination account id
   amount: string;
   currency: string;
-  timestamp: string;
+  created_at: string;
   status: string;
 }
 
 export interface GraphSubgraphResponse {
-  anchor_account_id: string;
-  depth: number;
-  time_window_hours: number;
+  target_account_id?: string | null;
   nodes: GraphNode[];
   edges: GraphEdge[];
-  node_count: number;
-  edge_count: number;
+  findings: Array<Record<string, unknown>>;
 }
 
+// Mirrors backend GraphFindingResponse (app/schemas/graph.py)
 export interface GraphFindingResponse {
   id: string;
   pattern_type: string;
-  pattern_version: string;
-  severity: 'INFO' | 'SUSPICIOUS' | 'CRITICAL';
+  detector_version: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   heuristic_score: string;
   primary_account_id: string;
-  primary_account_number?: string | null;
-  time_window_start: string;
-  time_window_end: string;
+  window_start: string;
+  window_end: string;
+  involved_transfer_ids: string[];
+  involved_account_ids: string[];
+  evidence: Record<string, unknown>;
   explanation: string;
-  evidence_json: Record<string, unknown>;
   review_status: 'PENDING' | 'CLEARED' | 'CONFIRMED_FRAUD' | 'ESCALATED';
+  reviewed_by_user_id?: string | null;
   review_notes?: string | null;
+  reviewed_at?: string | null;
   created_at: string;
 }
 
@@ -293,19 +296,26 @@ export interface GraphFindingResponse {
 // ==========================================
 export interface PayeePreviewPayload {
   source_account_id: string;
-  destination_account_id: string;
-  amount: string | number;
+  destination_account_id?: string;
+  destination_account_number?: string;
+  amount: string;
 }
 
+// Mirrors backend TransferPreviewResponse (app/schemas/transfer.py)
 export interface PayeePreviewResponse {
   source_account_id: string;
+  source_account_number: string;
+  source_available_balance: string;
   destination_account_id: string;
   recipient_legal_name: string;
   masked_account_number: string;
-  intended_amount: string;
-  currency: string;
+  account_type: string;
+  nickname?: string | null;
   is_first_time_recipient: boolean;
-  total_historical_transfers: number;
+  prior_transfers_count: number;
+  last_transferred_at?: string | null;
+  amount: string;
+  currency: string;
   validation_status: string;
   advisory_warnings: string[];
   verification_provider: string;
@@ -337,34 +347,44 @@ export interface DisputeResponse {
   resolution_notes?: string | null;
   resolved_at?: string | null;
   created_at: string;
-  updated_at: string;
   events: CaseEventResponse[];
   transfer_amount?: string | null;
   transfer_currency?: string | null;
 }
 
+// Must match backend DisputeCreateRequest.category pattern (app/schemas/dispute.py)
+export type DisputeCategory = 'UNAUTHORIZED' | 'INCORRECT_AMOUNT' | 'NOT_RECEIVED' | 'SUSPECTED_FRAUD' | 'OTHER';
+
 export interface CreateDisputePayload {
   transfer_request_id: string;
-  category: 'UNAUTHORIZED' | 'SUSPICIOUS_PAYEE' | 'AMOUNT_DISCREPANCY' | 'PROCESSING_DELAY' | 'OTHER';
+  category: DisputeCategory;
   description: string;
 }
 
+// Mirrors backend TimelineItem (app/schemas/fraud.py)
 export interface ForensicTimelineItem {
   timestamp: string;
-  event: string;
-  category: 'FACT' | 'STATISTICAL_MODEL' | 'HEURISTIC_RULE' | 'HUMAN_DECISION';
-  source_ref: string;
-  description: string;
+  category: 'FACT' | 'HEURISTIC_RULE' | 'STATISTICAL_MODEL' | 'GRAPH_TOPOLOGY' | 'INVESTIGATOR_ACTION';
+  title: string;
+  detail: string;
+  evidence_ref?: string | null;
 }
 
+export interface DossierAccount {
+  id: string;
+  account_number: string;
+  account_type: string;
+  cached_balance: string;
+  customer_legal_name: string;
+  status: string;
+}
+
+// Mirrors backend ForensicDossierResponse (app/schemas/fraud.py)
 export interface ForensicDossierResponse {
   alert: FraudAlert;
-  transfer: TransferRequest & {
-    source_account_number?: string;
-    source_customer_name?: string;
-    destination_account_number?: string;
-    destination_customer_name?: string;
-  };
+  transfer: TransferRequest;
+  source_account: DossierAccount;
+  destination_account: DossierAccount;
   ledger_transaction?: {
     id: string;
     transaction_type: string;
@@ -388,107 +408,131 @@ export interface ForensicDossierResponse {
     explanation: string;
     created_at: string;
   }>;
-  investigation_notes: Array<{
+  investigation_notes: InvestigationNoteResponse[];
+  audit_events: Array<{
     id: string;
-    staff_user_id: string;
-    staff_username: string;
-    note_type: string;
-    content: string;
-    created_at: string;
-  }>;
-  audit_logs: Array<{
-    id: number;
     action: string;
     entity_type: string;
     created_at: string;
-    metadata_json: Record<string, unknown>;
+    metadata: Record<string, unknown>;
+  }>;
+  disputes: Array<{
+    id: string;
+    status: string;
+    category: string;
+    description: string;
+    created_at: string;
   }>;
   timeline: ForensicTimelineItem[];
 }
 
+// Mirrors backend InvestigationNoteResponse (app/schemas/fraud.py)
 export interface InvestigationNoteResponse {
   id: string;
   fraud_prediction_id: string;
-  staff_user_id: string;
-  staff_username: string;
-  note_type: string;
+  author_user_id: string;
+  note_type: InvestigationNoteType;
   content: string;
   created_at: string;
 }
 
+// Must match backend InvestigationNoteCreateRequest.note_type pattern
+export type InvestigationNoteType = 'OBSERVATION' | 'EVIDENCE' | 'CONCLUSION' | 'ESCALATION';
+
 export interface CreateNotePayload {
-  note_type: 'OBSERVATION' | 'HYPOTHESIS' | 'CORROBORATING_EVIDENCE' | 'RESOLUTION_RATIONALE';
+  note_type: InvestigationNoteType;
   content: string;
 }
 
 // ==========================================
 // INNOVATION D: Fraud Lab Benchmarking Types
-// ==========================================
+// Mirrors backend ScenarioDefinition / DetectorMetrics / SimulationRunResponse (app/schemas/fraud_lab.py)
 export interface FraudLabScenario {
   name: string;
-  display_name: string;
   description: string;
-  expected_fraud_ratio: number;
+  default_samples: number;
 }
 
 export interface DetectorMetrics {
   precision: number;
   recall: number;
   f1_score: number;
-  pr_auc: number | null;
+  roc_auc: number;
+  pr_auc: number;
+  review_alerts_count: number;
   confusion_matrix: {
     true_positives: number;
     false_positives: number;
     true_negatives: number;
     false_negatives: number;
   };
-  alerts_count: number;
+}
+
+export interface ScenarioBreakdownItem {
+  count: number;
+  is_fraud_scenario: boolean;
+  rule_detection_rate: number;
+  rf_detection_rate: number;
+  graph_detection_rate: number;
+  hybrid_detection_rate: number;
 }
 
 export interface FraudLabRunResult {
-  run_id: string;
   scenario_name: string;
   seed: number;
   sample_size: number;
+  fraud_prevalence: number;
   fraud_count: number;
-  clean_count: number;
+  legitimate_count: number;
+  execution_duration_ms: number;
   detectors: Record<string, DetectorMetrics>;
-  scenario_breakdown: Record<string, { total: number; detected: number; detection_rate: number }>;
-  duration_ms: number;
-  artifact_fingerprint: string;
-  isolation_guarantee: string;
-  executed_at: string;
+  scenario_breakdown: Record<string, ScenarioBreakdownItem>;
+  ablation_finding: string;
+  disclaimer: string;
 }
 
+// Mirrors GET /api/v1/fraud-lab/history
 export interface FraudLabHistoryItem {
   id: string;
   scenario_name: string;
   seed: number;
   sample_size: number;
-  summary_metrics: Record<string, unknown>;
+  metrics: Record<string, DetectorMetrics>;
+  scenario_breakdown: Record<string, ScenarioBreakdownItem>;
   created_at: string;
 }
 
 // ==========================================
 // INNOVATION E: AI Health & Governance Types
-// ==========================================
+// Mirrors backend ModelHealthResponse (app/schemas/fraud.py)
 export interface AIHealthResponse {
   active_model_version: string;
+  algorithm: string;
+  is_fallback: boolean;
+  model_loaded: boolean;
+  decision_threshold: number;
   artifact_fingerprint: string;
-  is_model_loaded: boolean;
-  fallback_mode_active: boolean;
-  fallback_reason?: string | null;
-  feature_schema_columns: string[];
-  last_evaluated_timestamp: string;
+  feature_schema: string[];
+  created_at?: string | null;
+  train_samples?: number | null;
+  test_samples?: number | null;
+  evaluation_summary?: Record<string, unknown> | null;
   triage_metrics: {
-    total_alerts: number;
+    total_predictions: number;
     pending_review: number;
     cleared: number;
     confirmed_fraud: number;
     escalated: number;
-    backlog_ratio_percent: number;
+    pending_percentage: number;
   };
-  feature_drift_indicators: Record<string, { psi_score: number; status: 'STABLE' | 'MODERATE_DRIFT' | 'SIGNIFICANT_DRIFT' }>;
+  feature_drift_indicators: {
+    distribution_status: string;
+    recent_sample_size: number;
+    recent_mean_amount_inr: number;
+    reference_window: string;
+    interpretation: string;
+    [key: string]: unknown;
+  };
   known_limitations: string[];
 }
 

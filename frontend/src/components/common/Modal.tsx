@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -18,6 +18,17 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   maxWidth = 'md',
 }) => {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Move focus into the dialog on open and hand it back to the trigger on close
+  useEffect(() => {
+    if (!isOpen) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    return () => previouslyFocused?.focus();
+  }, [isOpen]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
@@ -49,17 +60,20 @@ export const Modal: React.FC<ModalProps> = ({
 
       {/* Modal Dialog */}
       <div
-        className={`relative w-full ${maxWidthStyles[maxWidth]} bg-mist-50 border-2 border-forest-800 rounded-lg p-5 sm:p-6 shadow-hero z-10 transition-all text-ink-900 [.theme-forensic_&]:bg-forensic-850 [.theme-forensic_&]:border-forensic-700 [.theme-forensic_&]:text-slate-100`}
+        className={`relative w-full ${maxWidthStyles[maxWidth]} bg-mist-50 border-2 border-forest-800 rounded-lg p-5 sm:p-6 shadow-hero z-10 text-ink-900 focus:outline-none [.theme-forensic_&]:bg-forensic-850 [.theme-forensic_&]:border-forensic-700 [.theme-forensic_&]:text-slate-100`}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        ref={dialogRef}
       >
         <div className="flex items-start justify-between gap-4 -mx-5 -mt-5 sm:-mx-6 sm:-mt-6 mb-5 px-5 py-4 bg-forest-900 border-b border-forest-950 rounded-t-md text-white [.theme-forensic_&]:bg-forensic-900 [.theme-forensic_&]:border-forensic-700">
           <div>
-            <h3 className="text-base sm:text-lg font-serif font-bold text-white [.theme-forensic_&]:text-slate-100 [.theme-forensic_&]:font-sans">
+            <h3 id={titleId} className="text-base sm:text-lg font-serif font-bold text-white [.theme-forensic_&]:text-slate-100 [.theme-forensic_&]:font-sans">
               {title}
             </h3>
             {description && (
-              <p className="text-xs text-sage-100 [.theme-forensic_&]:text-slate-400 mt-0.5 font-mono">
+              <p className="text-xs text-sage-100 [.theme-forensic_&]:text-slate-400 mt-1 leading-relaxed">
                 {description}
               </p>
             )}

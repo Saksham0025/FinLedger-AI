@@ -7,6 +7,7 @@ holdings inspection, and customer portfolio aggregation.
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal, ROUND_HALF_EVEN
 import hashlib
+import logging
 import uuid
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
@@ -24,7 +25,10 @@ from app.services.transfer_service import (
     InsufficientFundsError,
     TransferOwnershipError,
     AccountEligibilityError,
+    lock_accounts_canonically,
 )
+
+logger = logging.getLogger("finledger.investments")
 
 
 class InvestmentProductError(TransferBusinessError):
@@ -75,7 +79,7 @@ class InvestmentService:
             try:
                 db.rollback()
             except Exception:
-                pass
+                logger.exception("Rollback before investment failure audit failed")
 
         target_engine = db.get_bind() if db is not None else SessionLocal.kw.get("bind")
         with Session(target_engine) as isolated_db:
@@ -167,249 +171,88 @@ class InvestmentService:
         )
 
         # Step 1: Idempotency preliminary check
-        stmt = select(TransferRequest).where(
-            TransferRequest.source_user_id == caller_user_id,
-            TransferRequest.idempotency_key == idempotency_key,
-        )
-        existing_req = db.scalars(stmt).first()
-        if existing_req:
-            if existing_req.request_hash != request_hash:
-                raise InvestmentConflictError(
-                    f"Idempotency key '{idempotency_key}' already used with different investment parameters"
-                )
-            if existing_req.status == "POSTED":
-                # Find matching investment
-                inv_stmt = select(Investment).join(
-                    Account, Investment.account_id == Account.id
-                ).where(
-                    Account.id == existing_req.destination_account_id,
-                    Investment.invested_amount == existing_req.amount,
-                ).order_by(Investment.created_at.desc())
-                existing_inv = db.scalars(inv_stmt).first()
-                if existing_inv:
-                    return existing_inv, True
-            elif existing_req.status == "FAILED":
-                raise TransferBusinessError(
-                    f"Previous attempt failed: {existing_req.failure_reason}", status_code=400
-                )
+        replay = InvestmentService._find_replay(db, caller_user_id, idempotency_key, request_hash)
+        if replay:
+            return replay, True
 
-        # Step 2: Validate amount and currency
-        if amount <= Decimal("0.00"):
-            reason = "Investment amount must be strictly positive"
-            InvestmentService._persist_failure_and_audit(
-                caller_user_id=caller_user_id,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-                source_account_id=source_account_id,
-                destination_account_id=None,
-                amount=amount,
-                currency=currency,
-                failure_reason=reason,
-                db=db,
-                client_ip=client_ip,
-                user_agent=user_agent,
-            )
-            raise InvestmentProductError(reason)
-
-        if currency != "INR":
-            reason = f"Unsupported currency '{currency}'; only INR is supported"
-            InvestmentService._persist_failure_and_audit(
-                caller_user_id=caller_user_id,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-                source_account_id=source_account_id,
-                destination_account_id=None,
-                amount=amount,
-                currency=currency,
-                failure_reason=reason,
-                db=db,
-                client_ip=client_ip,
-                user_agent=user_agent,
-            )
-            raise InvestmentProductError(reason)
-
-        # Step 3: Validate customer profile and lock to prevent concurrent provisioning races
-        cust_stmt = (
-            select(Customer)
-            .where(Customer.user_id == caller_user_id)
-            .with_for_update()
-        )
-        customer = db.scalars(cust_stmt).first()
-        if not customer:
-            reason = "No customer profile found for caller"
-            InvestmentService._persist_failure_and_audit(
-                caller_user_id=caller_user_id,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-                source_account_id=source_account_id,
-                destination_account_id=None,
-                amount=amount,
-                currency=currency,
-                failure_reason=reason,
-                db=db,
-                client_ip=client_ip,
-                user_agent=user_agent,
-            )
-            raise TransferOwnershipError(reason)
-
-        # Step 4: Validate product availability & minimum amount
-        product = db.get(FinancialProduct, product_id)
-        if not product or not product.is_active:
-            reason = "Selected financial product is inactive or not found"
-            InvestmentService._persist_failure_and_audit(
-                caller_user_id=caller_user_id,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-                source_account_id=source_account_id,
-                destination_account_id=None,
-                amount=amount,
-                currency=currency,
-                failure_reason=reason,
-                db=db,
-                client_ip=client_ip,
-                user_agent=user_agent,
-            )
-            raise InvestmentProductError(reason)
-
-        if amount < product.min_amount:
-            reason = f"Investment amount INR {amount:,.2f} is below the product minimum of INR {product.min_amount:,.2f}"
-            InvestmentService._persist_failure_and_audit(
-                caller_user_id=caller_user_id,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-                source_account_id=source_account_id,
-                destination_account_id=None,
-                amount=amount,
-                currency=currency,
-                failure_reason=reason,
-                db=db,
-                client_ip=client_ip,
-                user_agent=user_agent,
-            )
-            raise InvestmentProductError(reason)
-
-        # Step 5: Get or provision customer's INVESTMENT holding account
-        inv_acc_stmt = select(Account).where(
-            Account.customer_id == customer.id,
-            Account.account_type == "INVESTMENT",
-            Account.status == "ACTIVE",
-        )
-        inv_acc = db.scalars(inv_acc_stmt).first()
-        if not inv_acc:
-            inv_acc = Account(
-                customer_id=customer.id,
-                account_number=f"INR-INV-{customer.id.hex[:8].upper()}",
-                account_type="INVESTMENT",
-                currency="INR",
-                cached_balance=Decimal("0.00"),
-                status="ACTIVE",
-                version=1,
-            )
-            db.add(inv_acc)
-            db.flush()
-
+        inv_acc: Account | None = None
         try:
-            # Step 6: Acquire locks in canonical ascending UUID order
-            first_id, second_id = sorted([source_account_id, inv_acc.id])
-            lock_stmt = (
-                select(Account)
-                .where(Account.id.in_([first_id, second_id]))
-                .order_by(Account.id.asc())
-                .with_for_update()
-            )
-            locked_accounts = {acc.id: acc for acc in db.scalars(lock_stmt).all()}
+            # Step 2: Validate amount and currency
+            if amount <= Decimal("0.00"):
+                raise InvestmentProductError("Investment amount must be strictly positive")
+            if currency != "INR":
+                raise InvestmentProductError(f"Unsupported currency '{currency}'; only INR is supported")
 
+            # Step 3: Validate customer profile and lock to prevent concurrent provisioning races
+            customer = db.scalars(
+                select(Customer).where(Customer.user_id == caller_user_id).with_for_update()
+            ).first()
+            if not customer:
+                raise TransferOwnershipError("No customer profile found for caller")
+
+            # A concurrent duplicate may have committed while we waited on the customer lock
+            replay = InvestmentService._find_replay(db, caller_user_id, idempotency_key, request_hash)
+            if replay:
+                return replay, True
+
+            # Step 4: Validate product availability & minimum amount
+            product = db.get(FinancialProduct, product_id)
+            if not product or not product.is_active:
+                raise InvestmentProductError("Selected financial product is inactive or not found")
+            if amount < product.min_amount:
+                raise InvestmentProductError(
+                    f"Investment amount INR {amount:,.2f} is below the product minimum of INR {product.min_amount:,.2f}"
+                )
+
+            # Step 5: Get or provision the customer's single INVESTMENT holding account.
+            # Any status is looked up so a FROZEN/CLOSED holding account is rejected below
+            # instead of colliding with its unique account number.
+            inv_acc = db.scalars(
+                select(Account).where(
+                    Account.customer_id == customer.id,
+                    Account.account_type == "INVESTMENT",
+                )
+            ).first()
+            if not inv_acc:
+                inv_acc = Account(
+                    customer_id=customer.id,
+                    account_number=f"INR-INV-{customer.id.hex[:8].upper()}",
+                    account_type="INVESTMENT",
+                    currency="INR",
+                    cached_balance=Decimal("0.00"),
+                    status="ACTIVE",
+                    version=1,
+                )
+                db.add(inv_acc)
+                db.flush()
+
+            # Step 6: Acquire locks in canonical ascending UUID order
+            locked_accounts = lock_accounts_canonically(db, source_account_id, inv_acc.id)
             source_acc = locked_accounts.get(source_account_id)
-            dest_inv_acc = locked_accounts.get(inv_acc.id)
+            dest_inv_acc = locked_accounts[inv_acc.id]
 
             if not source_acc:
-                reason = "Source funding account not found"
-                InvestmentService._persist_failure_and_audit(
-                    caller_user_id=caller_user_id,
-                    idempotency_key=idempotency_key,
-                    request_hash=request_hash,
-                    source_account_id=source_account_id,
-                    destination_account_id=inv_acc.id,
-                    amount=amount,
-                    currency=currency,
-                    failure_reason=reason,
-                    db=db,
-                    client_ip=client_ip,
-                    user_agent=user_agent,
-                )
-                raise AccountEligibilityError(reason)
-
-            # Ownership check: Customer must own the funding account
+                raise AccountEligibilityError("Source funding account not found")
             if source_acc.customer_id != customer.id:
-                reason = "Unauthorized: Source funding account does not belong to authenticated customer"
-                InvestmentService._persist_failure_and_audit(
-                    caller_user_id=caller_user_id,
-                    idempotency_key=idempotency_key,
-                    request_hash=request_hash,
-                    source_account_id=source_account_id,
-                    destination_account_id=inv_acc.id,
-                    amount=amount,
-                    currency=currency,
-                    failure_reason=reason,
-                    db=db,
-                    client_ip=client_ip,
-                    user_agent=user_agent,
+                raise TransferOwnershipError(
+                    "Unauthorized: Source funding account does not belong to authenticated customer"
                 )
-                raise TransferOwnershipError(reason)
-
-            # Status check
             if source_acc.status != "ACTIVE":
-                reason = f"Source account status is '{source_acc.status}', debits not permitted"
-                InvestmentService._persist_failure_and_audit(
-                    caller_user_id=caller_user_id,
-                    idempotency_key=idempotency_key,
-                    request_hash=request_hash,
-                    source_account_id=source_account_id,
-                    destination_account_id=inv_acc.id,
-                    amount=amount,
-                    currency=currency,
-                    failure_reason=reason,
-                    db=db,
-                    client_ip=client_ip,
-                    user_agent=user_agent,
+                raise AccountEligibilityError(
+                    f"Source account status is '{source_acc.status}', debits not permitted"
                 )
-                raise AccountEligibilityError(reason)
-
-            # Source account cannot be clearing or an investment account
             if source_acc.account_type in ("INTERNAL_CLEARING", "INVESTMENT"):
-                reason = f"Cannot purchase investments using account type '{source_acc.account_type}'"
-                InvestmentService._persist_failure_and_audit(
-                    caller_user_id=caller_user_id,
-                    idempotency_key=idempotency_key,
-                    request_hash=request_hash,
-                    source_account_id=source_account_id,
-                    destination_account_id=inv_acc.id,
-                    amount=amount,
-                    currency=currency,
-                    failure_reason=reason,
-                    db=db,
-                    client_ip=client_ip,
-                    user_agent=user_agent,
+                raise AccountEligibilityError(
+                    f"Cannot purchase investments using account type '{source_acc.account_type}'"
                 )
-                raise AccountEligibilityError(reason)
-
-            # Balance check under lock
+            if dest_inv_acc.status != "ACTIVE":
+                raise AccountEligibilityError(
+                    f"Investment holding account is {dest_inv_acc.status}, new subscriptions not permitted"
+                )
             if source_acc.cached_balance < amount:
-                reason = f"Insufficient funds: available INR {source_acc.cached_balance:,.2f}, required INR {amount:,.2f}"
-                InvestmentService._persist_failure_and_audit(
-                    caller_user_id=caller_user_id,
-                    idempotency_key=idempotency_key,
-                    request_hash=request_hash,
-                    source_account_id=source_account_id,
-                    destination_account_id=inv_acc.id,
-                    amount=amount,
-                    currency=currency,
-                    failure_reason=reason,
-                    db=db,
-                    client_ip=client_ip,
-                    user_agent=user_agent,
+                raise InsufficientFundsError(
+                    f"Insufficient funds: available INR {source_acc.cached_balance:,.2f}, required INR {amount:,.2f}"
                 )
-                raise InsufficientFundsError(reason)
 
             # Step 7: Atomic Financial and Investment Postings
             now_utc = datetime.now(timezone.utc)
@@ -462,7 +305,7 @@ class InvestmentService:
             dest_inv_acc.cached_balance += amount
             dest_inv_acc.version += 1
 
-            # 7e. Investment position record
+            # 7e. Investment position record (start_date == transfer posted_at links the pair for replays)
             investment = Investment(
                 customer_id=customer.id,
                 account_id=dest_inv_acc.id,
@@ -500,26 +343,60 @@ class InvestmentService:
 
             return investment, False
 
-        except (TransferBusinessError, AccountEligibilityError, InsufficientFundsError, TransferOwnershipError):
-            db.rollback()
-            raise
-        except Exception as e:
-            db.rollback()
-            reason = f"Internal error during investment purchase: {str(e)}"
-            InvestmentService._persist_failure_and_audit(
-                caller_user_id=caller_user_id,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-                source_account_id=source_account_id,
-                destination_account_id=inv_acc.id if inv_acc else None,
-                amount=amount,
-                currency=currency,
-                failure_reason=reason,
-                db=db,
-                client_ip=client_ip,
-                user_agent=user_agent,
+        except TransferBusinessError as err:
+            failure_reason, client_error = err.message, err
+        except Exception as exc:
+            # Never leak driver/SQL text to clients or to replayable failure reasons
+            logger.exception("Investment purchase failed with an internal error")
+            failure_reason = f"Internal error during investment purchase ({type(exc).__name__})"
+            client_error = TransferBusinessError(
+                "Investment purchase could not be completed due to an internal error", status_code=500
             )
-            raise TransferBusinessError(reason, status_code=500)
+
+        InvestmentService._persist_failure_and_audit(
+            caller_user_id=caller_user_id,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            source_account_id=source_account_id,
+            destination_account_id=inv_acc.id if inv_acc else None,
+            amount=amount,
+            currency=currency,
+            failure_reason=failure_reason,
+            db=db,
+            client_ip=client_ip,
+            user_agent=user_agent,
+        )
+        raise client_error
+
+    @staticmethod
+    def _find_replay(
+        db: Session,
+        caller_user_id: uuid.UUID,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> Investment | None:
+        """Resolve a scoped idempotency key to the exact investment its original request created."""
+        existing_req = db.scalars(
+            select(TransferRequest).where(
+                TransferRequest.source_user_id == caller_user_id,
+                TransferRequest.idempotency_key == idempotency_key,
+            )
+        ).first()
+        if not existing_req:
+            return None
+        if existing_req.request_hash != request_hash:
+            raise InvestmentConflictError(
+                f"Idempotency key '{idempotency_key}' already used with different investment parameters"
+            )
+        if existing_req.status == "FAILED":
+            raise TransferBusinessError(f"Previous attempt failed: {existing_req.failure_reason}", status_code=400)
+        return db.scalars(
+            select(Investment).where(
+                Investment.account_id == existing_req.destination_account_id,
+                Investment.invested_amount == existing_req.amount,
+                Investment.start_date == existing_req.posted_at,
+            )
+        ).first()
 
     @staticmethod
     def list_customer_investments(

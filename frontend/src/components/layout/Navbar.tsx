@@ -50,35 +50,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, isStaffSection 
               FL
             </div>
 
-            <div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`tracking-tight text-sm ${
-                    isStaffSection
-                      ? 'font-mono font-semibold text-slate-100'
-                      : 'font-serif font-bold text-forest-950 text-base'
-                  }`}
-                >
-                  FinLedger<span className={isStaffSection ? 'text-emerald-400 font-mono' : 'text-forest-700 font-sans text-xs ml-0.5 uppercase tracking-wider font-bold'}>
-                    {isStaffSection ? '.AI' : ' Atelier'}
-                  </span>
-                </span>
-                <span
-                  className={`text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border ${
-                    isStaffSection
-                      ? 'text-slate-400 border-forensic-700 bg-forensic-800'
-                      : 'text-forest-800 border-eucalyptus-300 bg-mist-100 font-bold'
-                  }`}
-                >
-                  {isStaffSection ? 'Forensic Ops Workbench' : 'Private Client Ledger'}
-                </span>
-              </div>
+            <div className="flex items-baseline gap-2">
               <span
-                className={`hidden sm:block text-[10px] uppercase tracking-wider font-mono ${
-                  isStaffSection ? 'text-slate-500' : 'text-forest-700 font-medium'
+                className={`tracking-tight ${
+                  isStaffSection ? 'font-sans font-semibold text-sm text-slate-100' : 'font-serif font-semibold text-lg text-forest-950'
                 }`}
               >
-                PostgreSQL Double-Entry • Advisory ML Triage
+                FinLedger
+              </span>
+              <span className={`hidden sm:inline text-xs ${isStaffSection ? 'text-slate-400' : 'text-ink-600'}`}>
+                {isStaffSection ? 'Staff workspace' : 'Personal banking'}
               </span>
             </div>
           </div>
@@ -110,14 +91,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, isStaffSection 
                   {user.customer?.full_name || user.username}
                 </p>
                 <p
-                  className={`text-[10px] font-mono ${
+                  className={`text-[11px] ${
                     isStaffSection ? 'text-slate-400' : 'text-ink-500'
                   }`}
                 >
                   {user.email}
                 </p>
               </div>
-              <Badge variant={roleVariant} size="sm">
+              <Badge variant={roleVariant} size="sm" className="hidden sm:inline-flex">
                 {user.role}
               </Badge>
             </div>
@@ -129,7 +110,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, isStaffSection 
               leftIcon={<LogOut className="w-3.5 h-3.5" />}
               className="text-xs"
             >
-              Sign Out
+              Sign out
             </Button>
           </div>
         )}

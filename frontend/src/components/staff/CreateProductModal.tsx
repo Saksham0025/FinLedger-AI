@@ -82,7 +82,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
 
       <form onSubmit={handleSubmit} className="space-y-4 font-sans">
         <div>
-          <label className="block text-[11px] font-bold text-sage-300 uppercase tracking-wider mb-1.5 font-mono">
+          <label className="block text-[11px] font-bold text-sage-300 mb-1.5 font-mono">
             Product Display Name
           </label>
           <input
@@ -97,7 +97,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] font-bold text-sage-300 uppercase tracking-wider mb-1.5 font-mono">
+            <label className="block text-[11px] font-bold text-sage-300 mb-1.5 font-mono">
               Product Code
             </label>
             <input
@@ -105,13 +105,13 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="e.g. FD-12M-PREM"
-              className="w-full bg-forensic-900 border border-forensic-700 rounded-lg px-3.5 py-2 text-xs font-mono uppercase text-white placeholder:text-sage-400/60 focus:outline-none focus:border-forest-500"
+              className="w-full bg-forensic-900 border border-forensic-700 rounded-lg px-3.5 py-2 text-xs font-mono text-white placeholder:text-sage-400/60 focus:outline-none focus:border-forest-500"
               required
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-sage-300 uppercase tracking-wider mb-1.5 font-mono">
+            <label className="block text-[11px] font-bold text-sage-300 mb-1.5 font-mono">
               Category
             </label>
             <select
@@ -129,7 +129,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
 
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="block text-[11px] font-bold text-sage-300 uppercase tracking-wider mb-1.5 font-mono">
+            <label className="block text-[11px] font-bold text-sage-300 mb-1.5 font-mono">
               Yield Rate (% p.a.)
             </label>
             <input
@@ -144,7 +144,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-sage-300 uppercase tracking-wider mb-1.5 font-mono">
+            <label className="block text-[11px] font-bold text-sage-300 mb-1.5 font-mono">
               Min Amount (₹)
             </label>
             <input
@@ -159,7 +159,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-sage-300 uppercase tracking-wider mb-1.5 font-mono">
+            <label className="block text-[11px] font-bold text-sage-300 mb-1.5 font-mono">
               Term (Months)
             </label>
             <input

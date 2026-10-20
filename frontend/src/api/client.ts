@@ -71,3 +71,13 @@ export function getErrorMessage(error: unknown): string {
   }
   return 'An unexpected error occurred. Please try again.';
 }
+
+/**
+ * True when the server definitively rejected the request (4xx). The attempt is then
+ * recorded server-side, so a corrected retry needs a fresh Idempotency-Key. Network
+ * errors and 5xx are ambiguous: keep the key so a retry can never charge twice.
+ */
+export function isDefinitiveRejection(error: unknown): boolean {
+  if (!axios.isAxiosError(error) || !error.response) return false;
+  return error.response.status >= 400 && error.response.status < 500;
+}

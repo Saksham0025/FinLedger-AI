@@ -91,8 +91,8 @@ FinLedger-AI is designed from first principles to reflect real-world core bankin
 
 ### Step 1: Clone the Repository
 ```powershell
-git clone https://github.com/Saksham0025/-FinLedger-AI.git
-cd -FinLedger-AI
+git clone https://github.com/Saksham0025/FinLedger-AI.git
+cd FinLedger-AI
 ```
 
 ---
@@ -120,6 +120,8 @@ CLEARING_ACCOUNT_NUMBER=INR-SYS-CLEARING
 ---
 
 ### Step 3: Backend Setup & Database Migrations
+**One command (Windows):** after setting `DB_PASSWORD` and `SECRET_KEY` in `.env`, run `.\scripts\setup_postgres_local.ps1` from the repository root. It installs dependencies, creates both databases, migrates them, seeds the clearing account, demo users and products, trains the fraud model and installs the frontend packages. It is safe to re-run. The manual steps below do the same thing.
+
 Create and activate the Python virtual environment:
 ```powershell
 python -m venv .venv
@@ -128,10 +130,11 @@ python -m pip install --upgrade pip
 pip install -r backend/requirements.txt
 ```
 
-Run Alembic migrations to build the complete relational schema:
+Run Alembic migrations to build the complete relational schema (development and test databases):
 ```powershell
 cd backend
 ..\.venv\Scripts\alembic.exe upgrade head
+..\.venv\Scripts\alembic.exe -x db=test upgrade head
 ```
 
 Seed demonstration accounts (Customer, Staff, Admin) and financial products:
@@ -139,6 +142,12 @@ Seed demonstration accounts (Customer, Staff, Admin) and financial products:
 ..\.venv\Scripts\python.exe scripts/seed_users.py
 ..\.venv\Scripts\python.exe scripts/seed_products.py
 ```
+
+Train the Random Forest fraud model (about a minute; the trained `model.joblib` is not committed):
+```powershell
+..\.venv\Scripts\python.exe -m ml.train --count 10000
+```
+Without this step the API still runs, but fraud scoring falls back to the transparent rule baseline and the **Model health** page says so.
 
 ---
 
@@ -156,9 +165,11 @@ npm run build
 
 **Start FastAPI Backend**:
 ```powershell
-# From workspace root
-.\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+# From the backend directory (the app imports itself as `app`)
+cd backend
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
+On Windows, `--reload` can detect a change and then stall without restarting; if the API keeps serving old code, stop it and start it again without `--reload`.
 - Swagger Interactive Documentation: [http://127.0.0.1:8000/api/v1/docs](http://127.0.0.1:8000/api/v1/docs)
 - Health Check: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
 
@@ -184,12 +195,12 @@ npm run dev
 
 ## 6. Verification & Test Execution
 
-### 1. Full Backend Test Suite (127 Tests)
+### 1. Full Backend Test Suite (164 Tests)
 ```powershell
 cd backend
 ..\.venv\Scripts\pytest.exe -v
 ```
-*Expected Outcome:* **127 passed, 1 warning** (100% pass rate).
+*Expected Outcome:* **164 passed, 1 warning** (the warning is a third-party Starlette/httpx deprecation notice).
 
 ### 2. Concurrency Race & Overspending Suite (8 Tests)
 ```powershell
@@ -198,12 +209,12 @@ cd backend
 ```
 *Includes:* Multi-threaded competing withdrawal drain race (5 concurrent threads), bi-directional transfer deadlock prevention, concurrent investment provisioning.
 
-### 3. Frontend Unit & Component Tests (16 Tests across 5 Test Files)
+### 3. Frontend Unit & Component Tests (23 Tests across 6 Test Files)
 ```powershell
 cd frontend
 npm test
 ```
-*Expected Outcome:* **5 test files passed, 16 passed** (100% pass rate).
+*Expected Outcome:* **6 test files passed, 23 passed**. `npx tsc --noEmit` should also report no errors.
 
 ### 4. Double-Entry Balance Reconciliation Audits
 ```powershell
@@ -251,7 +262,7 @@ cd backend
 
 ## 8. College Demonstration Protocol
 
-A complete 16-step examination walkthrough is documented in [docs/college_demonstration_guide.md](file:///c:/Users/Saksham%20Raj/Downloads/bin/Game,Project/Projects/FinLedger-AI/docs/college_demonstration_guide.md), demonstrating:
+A complete 16-step examination walkthrough is documented in [docs/college_demonstration_guide.md](docs/college_demonstration_guide.md), demonstrating:
 - Deterministic onboarding, opening deposits, and balanced ledger postings.
 - PayeeGuard beneficiary verification and client idempotency replay.
 - Fraud Lab multi-model benchmarking under strict isolation.
@@ -267,6 +278,11 @@ A complete 16-step examination walkthrough is documented in [docs/college_demons
 
 1. **Synthetic Data Disclaimer**: Machine learning metrics (Precision, Recall, F1) were evaluated against synthetic banking transaction scenarios. They demonstrate algorithmic integration and explainability pipelines, and do not represent uncalibrated real-world banking fraud efficacy.
 2. **Advisory AI Boundary**: AI models and graph detectors are strictly advisory. They never modify account balances, reject transfers, or freeze accounts autonomously.
-3. **Query Planner Trade-Off (Workload 2A)**: As documented in [docs/dbms_experiments.md](file:///c:/Users/Saksham%20Raj/Downloads/bin/Game,Project/Projects/FinLedger-AI/docs/dbms_experiments.md), queries combining sparse per-account filters with `LIMIT 50` can experience planner discounting under composite status indexes. Single-customer transaction history should continue relying on dedicated account index lookups.
+3. **Query Planner Trade-Off (Workload 2A)**: As documented in [docs/dbms_experiments.md](docs/dbms_experiments.md), queries combining sparse per-account filters with `LIMIT 50` can experience planner discounting under composite status indexes. Single-customer transaction history should continue relying on dedicated account index lookups.
 4. **Simulated Investments & Internal Directory**: Financial product yields and PayeeGuard beneficiary lookups operate against internal database directory records, and do not integrate live external NPCI/UPI gateways.
 
+5. **Corrections Are Admin-Only Reversals**: An admin can reverse a posted customer transfer (`POST /api/v1/transfers/{id}/reverse`, or **Correct the ledger** in the dossier and staff Disputes page). It posts a new balanced `CORRECTION_REVERSAL` and marks the original `REVERSED`; it refuses if the recipient no longer holds the money, and investment purchases cannot be reversed this way. Partial refunds are not supported.
+6. **Demo Deposits**: Customers can add simulated opening deposits to their own accounts (balanced against `INR-SYS-CLEARING`, so the books still balance). A real bank would restrict this to staff or a payment rail, and add an idempotency key.
+7. **Stateless Sessions**: Access tokens are 60-minute JWTs stored in the browser. Signing out is audited but does not revoke a token that has already been issued.
+8. **In-Request Graph Analysis**: LedgerGraph pattern analysis runs after each transfer commits, inside the same request. It never affects the posting, but it adds latency that grows with recent volume; a background worker would remove that.
+9. **Append-Only Guard Scope**: Triggers block UPDATE, DELETE and TRUNCATE on `ledger_entries`, `ledger_transactions` and `audit_logs`. Test and benchmark resets opt in with `SET LOCAL finledger.allow_truncate = 'on'`; in production the durable control is a least-privilege database role.

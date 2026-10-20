@@ -25,6 +25,11 @@ describe('Common UI Components', () => {
     expect(handleClick).not.toHaveBeenCalled();
   });
 
+  it('never hides the sign of a negative amount', () => {
+    render(<CurrencyDisplay amount="-50000.00" />);
+    expect(screen.getByText('-₹50,000.00')).toBeInTheDocument();
+  });
+
   it('renders CurrencyDisplay with exact formatted currency and sign', () => {
     render(<CurrencyDisplay amount={25000} sign="plus" colored />);
     expect(screen.getByText('+₹25,000.00')).toBeInTheDocument();

@@ -46,7 +46,8 @@ def get_model_health(
     db: Session = Depends(get_db),
 ):
     """Staff inspection of active ML model artifact fingerprint, readiness, and monitoring indicators."""
-    artifacts_dir = Path(__file__).resolve().parent.parent.parent / "ml" / "artifacts"
+    # backend/app/api/v1/fraud.py -> parents[3] is backend/
+    artifacts_dir = Path(__file__).resolve().parents[3] / "ml" / "artifacts"
     model_path = artifacts_dir / "model.joblib"
     metadata_path = artifacts_dir / "metadata.json"
     eval_path = artifacts_dir / "evaluation_report.json"
@@ -268,7 +269,7 @@ def get_forensic_dossier(
             "action": a.action,
             "entity_type": a.entity_type,
             "created_at": a.created_at.isoformat(),
-            "metadata": a.metadata_snapshot,
+            "metadata": a.metadata_json,
         }
         for a in db.scalars(audit_stmt).all()
     ]

@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
 import uuid
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class TransferCreateRequest(BaseModel):
@@ -54,12 +54,33 @@ class TransferResponse(BaseModel):
     posted_at: datetime | None = None
 
 
+class TransferReversalRequest(BaseModel):
+    """Admin correction of a posted customer transfer (CORRECTION_REVERSAL)."""
+
+    reason: str = Field(..., min_length=10, max_length=500, description="Why the transfer is being reversed")
+
+
+class TransferHistoryItem(TransferResponse):
+    """Transfer row for a customer's history, with human-readable account numbers."""
+
+    source_account_number: str
+    destination_account_number: str
+
+
 class TransferPreviewRequest(BaseModel):
     """Payload for POST /api/v1/transfers/preview (PayeeGuard)."""
 
     source_account_id: uuid.UUID
-    destination_account_id: uuid.UUID
+    # Exactly one destination identifier: customers know account numbers, not UUIDs
+    destination_account_id: uuid.UUID | None = None
+    destination_account_number: str | None = Field(None, min_length=3, max_length=50)
     amount: Decimal = Field(gt=Decimal("0.00"), decimal_places=2)
+
+    @model_validator(mode="after")
+    def exactly_one_destination(self) -> "TransferPreviewRequest":
+        if (self.destination_account_id is None) == (self.destination_account_number is None):
+            raise ValueError("Provide exactly one of destination_account_id or destination_account_number")
+        return self
 
 
 class TransferPreviewResponse(BaseModel):

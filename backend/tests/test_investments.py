@@ -463,7 +463,9 @@ def test_forced_failure_investment_atomic_rollback(raw_db_session, monkeypatch):
             amount=invest_amount,
         )
 
-    assert "Simulated database failure" in str(exc_info.value)
+    # Internal exception text must never reach the client (AGENTS.md §4.3)
+    assert exc_info.value.status_code == 500
+    assert "Simulated database failure" not in str(exc_info.value)
 
     # Restore commit for verification
     monkeypatch.setattr(raw_db_session, "commit", original_commit)

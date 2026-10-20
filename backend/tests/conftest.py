@@ -56,6 +56,8 @@ def clean_test_database_session(engine):
 
     def _truncate_and_reseed():
         with engine.connect() as conn:
+            # Append-only tables block TRUNCATE unless a reset explicitly opts in for this transaction
+            conn.execute(text("SET LOCAL finledger.allow_truncate = 'on'"))
             conn.execute(
                 text(
                     "TRUNCATE simulation_runs, case_events, disputes, graph_findings, "

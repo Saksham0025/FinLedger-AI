@@ -38,8 +38,8 @@ export const ReconciliationPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="System Ledger Reconciliation Audit"
-        description="Automated mathematical ledger proof asserting cached_balance == sum(credits) - sum(debits) across all system accounts"
+        title="Reconciliation"
+        description="Checks every account: the stored balance must equal its credits minus its debits, recomputed from the ledger right now."
         action={
           <Button
             variant="primary"
@@ -77,7 +77,7 @@ export const ReconciliationPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card variant="forensic">
             <div className="flex items-center justify-between text-sage-400 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider font-mono">Audit Integrity</span>
+              <span className="text-[11px] font-bold font-mono">Audit Integrity</span>
               {report.is_balanced ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               ) : (
@@ -96,7 +96,7 @@ export const ReconciliationPage: React.FC = () => {
 
           <Card variant="forensic">
             <div className="flex items-center justify-between text-sage-400 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider font-mono">Audited Accounts</span>
+              <span className="text-[11px] font-bold font-mono">Audited Accounts</span>
               <Scale className="w-4 h-4 text-emerald-400" />
             </div>
             <span className="text-2xl font-bold text-white font-mono tabular-nums">
@@ -109,7 +109,7 @@ export const ReconciliationPage: React.FC = () => {
 
           <Card variant="forensic">
             <div className="flex items-center justify-between text-sage-400 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider font-mono">System Clearing Balance</span>
+              <span className="text-[11px] font-bold font-mono">System Clearing Balance</span>
               <Scale className="w-4 h-4 text-sage-300" />
             </div>
             <CurrencyDisplay amount={report.system_clearing_balance} size="xl" colored />
@@ -120,7 +120,7 @@ export const ReconciliationPage: React.FC = () => {
 
           <Card variant="forensic">
             <div className="flex items-center justify-between text-sage-400 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider font-mono">Global Net Ledger Delta</span>
+              <span className="text-[11px] font-bold font-mono">Global Net Ledger Delta</span>
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
             </div>
             <CurrencyDisplay amount={report.global_net_ledger_delta} size="xl" colored />
@@ -142,13 +142,13 @@ export const ReconciliationPage: React.FC = () => {
         ) : !report || report.discrepancies.length === 0 ? (
           <EmptyState
             icon={<CheckCircle2 className="w-8 h-8 text-emerald-400" />}
-            title="All Accounts Reconciled Perfectly"
-            description="Every account cached_balance matches its derived posted ledger sum exactly. Zero discrepancies."
+            title="Every account reconciles"
+            description="Each stored balance matches the sum of its posted ledger entries exactly."
           />
         ) : (
           <div className="overflow-x-auto rounded-lg border border-forensic-700">
             <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-forensic-900 text-[10px] uppercase text-rose-300 border-b border-forensic-700 font-bold tracking-wider">
+              <thead className="bg-forensic-900 text-[11px] text-rose-300 border-b border-forensic-700 font-bold">
                 <tr>
                   <th className="py-2.5 px-3">Account Number</th>
                   <th className="py-2.5 px-3">Account ID</th>
