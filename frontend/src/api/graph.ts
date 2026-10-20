@@ -1,16 +1,17 @@
 import { apiClient } from './client';
 import { GraphSubgraphResponse, GraphFindingResponse } from '../types/api';
 
+// Mirrors GET /api/v1/graph/subgraph query parameters
 export interface GetSubgraphParams {
-  anchor_account_id?: string;
-  depth?: number;
-  time_window_hours?: number;
-  min_amount?: number;
+  account_id?: string;
+  transfer_id?: string;
+  hops?: number;
+  limit?: number;
 }
 
 export interface ListFindingsParams {
   pattern_type?: string;
-  severity?: 'INFO' | 'SUSPICIOUS' | 'CRITICAL';
+  severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   review_status?: 'PENDING' | 'CLEARED' | 'CONFIRMED_FRAUD' | 'ESCALATED';
   limit?: number;
   offset?: number;
@@ -29,7 +30,7 @@ export const graphApi = {
 
   reviewFinding: async (
     id: string,
-    payload: { review_status: string; review_notes?: string }
+    payload: { review_status: 'CLEARED' | 'CONFIRMED_FRAUD' | 'ESCALATED'; notes: string }
   ): Promise<GraphFindingResponse> => {
     const res = await apiClient.patch<GraphFindingResponse>(`/api/v1/graph/findings/${id}/review`, payload);
     return res.data;

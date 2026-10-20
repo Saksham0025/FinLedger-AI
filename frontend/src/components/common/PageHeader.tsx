@@ -14,7 +14,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ title, description, acti
           {title}
         </h1>
         {description && (
-          <p className="text-xs text-ink-600 font-sans mt-1 max-w-3xl leading-relaxed [.theme-forensic_&]:text-slate-400 [.theme-forensic_&]:font-mono">
+          <p className="text-sm text-ink-600 font-sans mt-1.5 max-w-3xl leading-relaxed [.theme-forensic_&]:text-slate-400">
             {description}
           </p>
         )}

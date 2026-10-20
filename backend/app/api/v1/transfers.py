@@ -1,15 +1,16 @@
 """Transfer API Endpoints for FinLedger-AI."""
 
 import uuid
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
-from sqlalchemy.orm import Session
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_, select
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_current_user, require_admin, require_customer
 from app.models.user import User
 from app.models.transfer import TransferRequest
 from app.models.account import Account
-from app.schemas.transfer import TransferCreateRequest, TransferResponse
+from app.schemas.transfer import TransferCreateRequest, TransferHistoryItem, TransferResponse, TransferReversalRequest
+from app.services.reversal_service import ReversalError, ReversalService
 from app.services.transfer_service import (
     TransferService,
     IdempotencyConflictError,
@@ -32,19 +33,18 @@ router = APIRouter(prefix="/transfers", tags=["Financial Transfers"])
 )
 def preview_transfer(
     data: TransferPreviewRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
     """Authoritative pre-transfer beneficiary verification without moving funds."""
-    is_staff = current_user.role in ("STAFF", "ADMIN")
     try:
         return PayeeGuardService.preview_transfer(
             db=db,
             caller_user_id=current_user.id,
             source_account_id=data.source_account_id,
             destination_account_id=data.destination_account_id,
+            destination_account_number=data.destination_account_number,
             amount=data.amount,
-            is_staff=is_staff,
         )
     except PayeeGuardError as err:
         raise HTTPException(status_code=err.status_code, detail=err.message)
@@ -60,32 +60,28 @@ def create_transfer(
     data: TransferCreateRequest,
     request: Request,
     response: Response,
-    idempotency_key: str = Header(
+    idempotency_key: uuid.UUID = Header(
         ...,
         alias="Idempotency-Key",
-        min_length=1,
-        max_length=64,
         description="Unique UUIDv4 idempotency key per client operation",
     ),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
     """Execute an atomic transfer between two accounts with canonical locking and idempotency."""
     client_ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
-    is_staff = current_user.role in ("STAFF", "ADMIN")
 
     try:
         transfer_req, is_replay = TransferService.execute_transfer(
             db=db,
             caller_user_id=current_user.id,
-            idempotency_key=idempotency_key,
+            idempotency_key=str(idempotency_key),
             source_account_id=data.source_account_id,
             destination_account_id=data.destination_account_id,
             amount=data.amount,
             currency=data.currency,
             memo=data.memo,
-            is_staff_override=is_staff,
             client_ip=client_ip,
             user_agent=user_agent,
         )
@@ -120,6 +116,45 @@ def create_transfer(
             status_code=err.status_code,
             detail=err.message,
         )
+
+
+@router.get(
+    "",
+    response_model=list[TransferHistoryItem],
+    summary="List the caller's transfers (sent, received, and failed attempts), newest first",
+)
+def list_my_transfers(
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(require_customer),
+    db: Session = Depends(get_db),
+):
+    """Read-only history scoped to the caller: transfers they initiated or that touch their accounts."""
+    my_account_ids = select(Account.id).where(
+        Account.customer_id == (current_user.customer.id if current_user.customer else None)
+    )
+    stmt = (
+        select(TransferRequest)
+        .options(joinedload(TransferRequest.source_account), joinedload(TransferRequest.destination_account))
+        .where(
+            or_(
+                TransferRequest.source_user_id == current_user.id,
+                TransferRequest.source_account_id.in_(my_account_ids),
+                TransferRequest.destination_account_id.in_(my_account_ids),
+            )
+        )
+        .order_by(TransferRequest.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return [
+        TransferHistoryItem(
+            **TransferResponse.model_validate(t).model_dump(),
+            source_account_number=t.source_account.account_number,
+            destination_account_number=t.destination_account.account_number,
+        )
+        for t in db.scalars(stmt).unique()
+    ]
 
 
 @router.get(
@@ -165,3 +200,30 @@ def get_transfer(
             )
 
     return transfer
+
+
+@router.post(
+    "/{transfer_id}/reverse",
+    response_model=TransferResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Reverse a posted customer transfer with a balanced CORRECTION_REVERSAL (admin only)",
+)
+def reverse_transfer(
+    transfer_id: uuid.UUID,
+    data: TransferReversalRequest,
+    request: Request,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Post the opposite double-entry transaction; the original's ledger legs are never edited."""
+    try:
+        return ReversalService.reverse_transfer(
+            db=db,
+            transfer_id=transfer_id,
+            actor_user_id=current_user.id,
+            reason=data.reason.strip(),
+            client_ip=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
+    except ReversalError as err:
+        raise HTTPException(status_code=err.status_code, detail=err.message)

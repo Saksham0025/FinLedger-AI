@@ -2,9 +2,21 @@ import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { ErrorBanner } from '../common/ErrorBanner';
+import { CurrencyDisplay } from '../common/CurrencyDisplay';
 import { disputesApi } from '../../api/disputes';
 import { getErrorMessage } from '../../api/client';
-import { CheckCircle2, ShieldAlert } from 'lucide-react';
+import { DisputeCategory } from '../../types/api';
+import { CheckCircle2 } from 'lucide-react';
+
+export const DISPUTE_CATEGORY_LABELS: Record<DisputeCategory, string> = {
+  UNAUTHORIZED: "I didn't make this transfer",
+  INCORRECT_AMOUNT: 'The amount is wrong',
+  NOT_RECEIVED: "The recipient didn't receive it",
+  SUSPECTED_FRAUD: 'I think I was tricked or scammed',
+  OTHER: 'Something else',
+};
+
+const MIN_DESCRIPTION = 10; // backend DisputeCreateRequest.description min_length
 
 interface DisputeModalProps {
   isOpen: boolean;
@@ -14,6 +26,9 @@ interface DisputeModalProps {
   onDisputeCreated?: () => void;
 }
 
+const inputClass =
+  'w-full bg-surface border border-hairline rounded px-3 py-2 text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 transition-colors';
+
 export const DisputeModal: React.FC<DisputeModalProps> = ({
   isOpen,
   onClose,
@@ -21,7 +36,7 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
   transferAmount,
   onDisputeCreated,
 }) => {
-  const [category, setCategory] = useState<'UNAUTHORIZED' | 'SUSPICIOUS_PAYEE' | 'AMOUNT_DISCREPANCY' | 'PROCESSING_DELAY' | 'OTHER'>('UNAUTHORIZED');
+  const [category, setCategory] = useState<DisputeCategory>('UNAUTHORIZED');
   const [description, setDescription] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,20 +44,15 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description.trim()) {
-      setError('Please provide a description of the transaction issue.');
+    if (description.trim().length < MIN_DESCRIPTION) {
+      setError(`Tell us what happened in at least ${MIN_DESCRIPTION} characters.`);
       return;
     }
 
     setIsLoading(true);
     setError(null);
-
     try {
-      await disputesApi.createDispute({
-        transfer_request_id: transferId,
-        category,
-        description: description.trim(),
-      });
+      await disputesApi.createDispute({ transfer_request_id: transferId, category, description: description.trim() });
       setIsSuccess(true);
       onDisputeCreated?.();
     } catch (err: unknown) {
@@ -52,7 +62,7 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
     }
   };
 
-  const handleReset = () => {
+  const handleClose = () => {
     setDescription('');
     setCategory('UNAUTHORIZED');
     setError(null);
@@ -63,86 +73,88 @@ export const DisputeModal: React.FC<DisputeModalProps> = ({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={handleReset}
-      title={isSuccess ? 'Recourse Inquiry Filed' : 'File Transaction Dispute'}
-      description="Internal FinLedger-AI customer recourse and forensic investigation inquiry."
+      onClose={handleClose}
+      title={isSuccess ? 'Dispute opened' : 'Dispute a transfer'}
+      description={
+        isSuccess
+          ? 'Our investigations team will review it. You can follow its progress on the Disputes page.'
+          : "Tell us what's wrong. Opening a dispute doesn't change your balance; any correction is posted as a new, balanced entry."
+      }
       maxWidth="md"
     >
       {error && <ErrorBanner message={error} className="mb-4" />}
 
       {isSuccess ? (
-        <div className="space-y-4 text-center py-2 font-sans">
-          <div className="p-5 rounded-lg bg-sage-50 border border-moss-300 text-forest-950 flex flex-col items-center gap-2 shadow-sm">
-            <CheckCircle2 className="w-8 h-8 text-forest-800" />
-            <h4 className="text-sm font-bold uppercase tracking-wider text-forest-950 font-serif">
-              Inquiry Case Opened
-            </h4>
-            <p className="text-xs text-forest-800 max-w-sm font-sans">
-              Your inquiry has been logged into the append-only audit trail and assigned to the fraud investigation team for evidentiary review.
-            </p>
+        <div className="space-y-4">
+          <div className="p-5 rounded-md bg-surface border border-hairline flex items-center gap-3">
+            <CheckCircle2 className="w-6 h-6 text-forest-800 shrink-0" aria-hidden="true" />
+            <p className="text-sm text-ink-800">{DISPUTE_CATEGORY_LABELS[category]}</p>
           </div>
-          <div className="flex justify-end pt-2 font-sans">
-            <Button variant="primary" size="sm" onClick={handleReset}>
-              Close
+          <div className="flex justify-end">
+            <Button variant="primary" size="sm" onClick={handleClose}>
+              Done
             </Button>
           </div>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-4 font-sans">
-          <div className="p-3.5 rounded-md bg-parchment-50 border border-hairline text-xs flex items-center justify-between">
-            <span className="text-ink-600 font-sans">Transfer Reference</span>
-            <span className="text-ink-950 font-mono font-bold truncate max-w-[220px]">
-              {transferId} {transferAmount ? `(₹${parseFloat(String(transferAmount)).toLocaleString('en-IN')})` : ''}
-            </span>
-          </div>
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          <dl className="p-4 rounded-md bg-surface border border-hairline text-sm space-y-1.5">
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-600">Transfer</dt>
+              <dd className="font-mono text-xs text-ink-950 truncate max-w-[240px]" title={transferId}>
+                {transferId}
+              </dd>
+            </div>
+            {transferAmount !== undefined && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-ink-600">Amount</dt>
+                <dd>
+                  <CurrencyDisplay amount={transferAmount} size="sm" />
+                </dd>
+              </div>
+            )}
+          </dl>
 
           <div>
-            <label className="block text-xs font-bold text-ink-900 uppercase tracking-wider mb-1 font-sans">
-              Dispute Category
+            <label htmlFor="dispute-category" className="block text-sm font-medium text-ink-800 mb-1">
+              What&apos;s the problem?
             </label>
             <select
+              id="dispute-category"
               value={category}
-              onChange={(e) => setCategory(e.target.value as any)}
-              className="w-full bg-parchment-50 border border-hairline rounded px-3 py-2 text-xs text-ink-950 focus:outline-none focus:border-forest-800 focus:bg-white font-sans"
+              onChange={(e) => setCategory(e.target.value as DisputeCategory)}
+              className={inputClass}
             >
-              <option value="UNAUTHORIZED">Unauthorized Transaction</option>
-              <option value="SUSPICIOUS_PAYEE">Suspicious / Impersonated Beneficiary</option>
-              <option value="AMOUNT_DISCREPANCY">Incorrect Debit Amount</option>
-              <option value="PROCESSING_DELAY">Processing Error / Double Debit</option>
-              <option value="OTHER">Other Clarification</option>
+              {(Object.keys(DISPUTE_CATEGORY_LABELS) as DisputeCategory[]).map((key) => (
+                <option key={key} value={key}>
+                  {DISPUTE_CATEGORY_LABELS[key]}
+                </option>
+              ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-ink-900 uppercase tracking-wider mb-1 font-sans">
-              Incident Description & Evidence Notes
+            <label htmlFor="dispute-description" className="block text-sm font-medium text-ink-800 mb-1">
+              What happened?
             </label>
             <textarea
-              rows={3}
+              id="dispute-description"
+              rows={4}
+              maxLength={2000}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Explain the circumstances (e.g., location, unrecognized payee, uninitiated OTP, or discrepancy)..."
-              className="w-full bg-parchment-50 border border-hairline rounded px-3 py-2 text-xs text-ink-950 font-sans placeholder:text-ink-400 focus:outline-none focus:border-forest-800 focus:bg-white resize-none transition-colors"
+              placeholder="For example: I don't recognise the recipient and didn't approve this payment."
+              className={`${inputClass} resize-none`}
               required
             />
           </div>
 
-          <div className="p-3.5 rounded-md bg-parchment-50 border border-hairline text-[11px] text-ink-600 space-y-1 font-sans">
-            <div className="flex items-center gap-1.5 text-copper-700 font-bold uppercase font-sans text-[10px]">
-              <ShieldAlert className="w-3.5 h-3.5 text-copper-700" />
-              <span>Immutable Ledger & Recourse Policy</span>
-            </div>
-            <p className="text-ink-600 text-[11px] leading-relaxed">
-              Filing a dispute initiates forensic triage. In accordance with double-entry accounting standards, balances cannot be modified arbitrarily without an authorized, balanced reversal transaction.
-            </p>
-          </div>
-
-          <div className="pt-3 border-t border-hairline flex items-center justify-end gap-2.5 font-sans">
-            <Button variant="secondary" size="sm" type="button" onClick={onClose} disabled={isLoading}>
+          <div className="pt-3 border-t border-hairline flex items-center justify-end gap-2.5">
+            <Button variant="secondary" size="sm" type="button" onClick={handleClose} disabled={isLoading}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" type="submit" isLoading={isLoading} className="font-bold">
-              Submit Recourse Inquiry
+            <Button variant="primary" size="sm" type="submit" isLoading={isLoading}>
+              Open dispute
             </Button>
           </div>
         </form>

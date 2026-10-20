@@ -21,7 +21,15 @@ class Settings(BaseSettings):
 
     # Environment
     ENVIRONMENT: str = "development"
-    DEBUG: bool = True
+    # Secure by default: Swagger docs are only exposed when DEBUG is explicitly enabled
+    DEBUG: bool = False
+    # Browser origins allowed to call the API (Vite dev server and preview build)
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+    ]
     API_V1_PREFIX: str = "/api/v1"
 
     # PostgreSQL 16 Configuration

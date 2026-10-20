@@ -1,13 +1,13 @@
 """LedgerGraph API Endpoints for FinLedger-AI."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, desc
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, require_staff
 from app.models.user import User
 from app.models.graph import GraphFinding
 from app.models.audit import AuditLog
@@ -27,12 +27,10 @@ def get_subgraph(
     transfer_id: Optional[uuid.UUID] = Query(None, description="Center transfer UUID"),
     hops: int = Query(2, ge=1, le=3, description="Neighborhood expansion hop limit"),
     limit: int = Query(60, ge=5, le=100, description="Max transfers in neighborhood"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_staff),
     db: Session = Depends(get_db),
 ):
     """Retrieve topological graph of accounts and transfers for staff forensic exploration."""
-    if current_user.role not in ("STAFF", "ADMIN"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
 
     return LedgerGraphService.get_subgraph(
         db=db,
@@ -55,12 +53,10 @@ def list_findings(
     account_id: Optional[uuid.UUID] = Query(None, description="Filter by primary account"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_staff),
     db: Session = Depends(get_db),
 ):
     """Staff triage queue for multi-account money laundering topologies."""
-    if current_user.role not in ("STAFF", "ADMIN"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
 
     conditions = []
     if pattern_type:
@@ -87,12 +83,10 @@ def list_findings(
 )
 def get_finding(
     finding_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_staff),
     db: Session = Depends(get_db),
 ):
     """Retrieve full forensic evidence dossier for a specific graph finding."""
-    if current_user.role not in ("STAFF", "ADMIN"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
 
     finding = db.get(GraphFinding, finding_id)
     if not finding:
@@ -114,12 +108,10 @@ def get_finding(
 def review_finding(
     finding_id: uuid.UUID,
     data: GraphReviewRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_staff),
     db: Session = Depends(get_db),
 ):
     """Staff review determination for a detected multi-account money movement topology."""
-    if current_user.role not in ("STAFF", "ADMIN"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
 
     finding = db.get(GraphFinding, finding_id)
     if not finding:
@@ -129,7 +121,7 @@ def review_finding(
     finding.review_status = data.review_status
     finding.review_notes = data.notes
     finding.reviewed_by_user_id = current_user.id
-    finding.reviewed_at = datetime.utcnow()
+    finding.reviewed_at = datetime.now(timezone.utc)
 
     # Record audit log
     audit = AuditLog(
@@ -137,7 +129,7 @@ def review_finding(
         entity_type="GRAPH_FINDING",
         entity_id=str(finding.id),
         actor_user_id=current_user.id,
-        metadata_snapshot={
+        metadata_json={
             "finding_id": str(finding.id),
             "pattern_type": finding.pattern_type,
             "from_status": old_status,

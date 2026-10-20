@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatINR, formatPercent, formatDate, generateUUID } from '../utils/formatters';
+import { formatINR, formatPercent, formatDate, generateUUID, parseAmountInput } from '../utils/formatters';
 
 describe('formatters utility', () => {
   it('formats positive and zero INR amounts correctly with two decimals and grouping', () => {
@@ -36,5 +36,23 @@ describe('formatters utility', () => {
     const formatted = formatDate(iso);
     expect(formatted).toContain('2026');
     expect(formatted).toContain('Oct');
+  });
+});
+
+describe('parseAmountInput', () => {
+  it('normalises valid rupee amounts to two decimals', () => {
+    expect(parseAmountInput('2500')).toBe('2500.00');
+    expect(parseAmountInput(' 1,250.5 ')).toBe('1250.50');
+    expect(parseAmountInput('0.01')).toBe('0.01');
+    expect(parseAmountInput('007.10')).toBe('7.10');
+  });
+
+  it('rejects zero, negatives, extra precision and non-numbers', () => {
+    expect(parseAmountInput('0')).toBeNull();
+    expect(parseAmountInput('0.00')).toBeNull();
+    expect(parseAmountInput('-5')).toBeNull();
+    expect(parseAmountInput('10.005')).toBeNull();
+    expect(parseAmountInput('1e3')).toBeNull();
+    expect(parseAmountInput('')).toBeNull();
   });
 });

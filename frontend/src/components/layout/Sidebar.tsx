@@ -29,23 +29,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isStaffSectio
 
   const customerNav = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'Accounts & Ledger', path: '/accounts', icon: Wallet },
-    { name: 'Money Transfers', path: '/transfers', icon: ArrowRightLeft },
-    { name: 'Financial Products', path: '/products', icon: Sparkles },
-    { name: 'Portfolio & Holdings', path: '/portfolio', icon: PieChart },
-    { name: 'Recourse & Disputes', path: '/disputes', icon: LifeBuoy },
+    { name: 'Accounts & statements', path: '/accounts', icon: Wallet },
+    { name: 'Transfers', path: '/transfers', icon: ArrowRightLeft },
+    { name: 'Investment products', path: '/products', icon: Sparkles },
+    { name: 'Portfolio', path: '/portfolio', icon: PieChart },
+    { name: 'Disputes', path: '/disputes', icon: LifeBuoy },
   ];
 
   const staffNav = [
-    { name: 'Risk Dashboard', path: '/staff', icon: LayoutDashboard },
-    { name: 'Fraud Alert Triage', path: '/staff/fraud', icon: ShieldAlert },
-    { name: 'LedgerGraph Explorer', path: '/staff/graph', icon: GitBranch },
-    { name: 'Fraud Lab Benchmark', path: '/staff/fraud-lab', icon: FlaskConical },
-    { name: 'AI Health & Governance', path: '/staff/ai-health', icon: Activity },
-    { name: 'Accounts Inspector', path: '/staff/accounts', icon: Users },
-    { name: 'Audit Trail', path: '/staff/audit', icon: FileText },
-    { name: 'Ledger Reconciliation', path: '/staff/reconciliation', icon: Scale },
-    { name: 'Reports & Analytics', path: '/staff/reports', icon: BarChart3 },
+    { name: 'Overview', path: '/staff', icon: LayoutDashboard },
+    { name: 'Fraud alerts', path: '/staff/fraud', icon: ShieldAlert },
+    { name: 'LedgerGraph', path: '/staff/graph', icon: GitBranch },
+    { name: 'Fraud Lab', path: '/staff/fraud-lab', icon: FlaskConical },
+    { name: 'Disputes', path: '/staff/disputes', icon: LifeBuoy },
+    { name: 'Model health', path: '/staff/ai-health', icon: Activity },
+    { name: 'Accounts', path: '/staff/accounts', icon: Users },
+    { name: 'Audit trail', path: '/staff/audit', icon: FileText },
+    { name: 'Reconciliation', path: '/staff/reconciliation', icon: Scale },
+    { name: 'Reports', path: '/staff/reports', icon: BarChart3 },
   ];
 
   const navItems = isStaff ? staffNav : customerNav;
@@ -68,21 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isStaffSectio
             : 'bg-paper-50 border-r border-eucalyptus-300 text-ink-900 shadow-atelier'
         } ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
-        <div className="space-y-4">
-          <div
-            className={`px-2 pt-1 pb-2 border-b ${
-              isStaffSection ? 'border-forensic-700' : 'border-eucalyptus-200'
-            }`}
-          >
-            <span
-              className={`text-[10px] font-bold uppercase tracking-wider font-mono ${
-                isStaffSection ? 'text-emerald-400' : 'text-forest-800'
-              }`}
-            >
-              {isStaff ? 'Forensic Operations' : 'Ledger Registry'}
-            </span>
-          </div>
-
+        <div>
           <nav className="space-y-1.5">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -93,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isStaffSectio
                   end={item.path === '/dashboard' || item.path === '/staff'}
                   onClick={onClose}
                   className={({ isActive }) =>
-                    `flex items-center gap-2.5 px-3 py-2.5 rounded text-xs transition-all ${
+                    `flex items-center gap-2.5 px-3 py-2.5 rounded text-sm transition-colors ${
                       isActive
                         ? isStaffSection
                           ? 'bg-forensic-800 text-emerald-300 border border-forensic-700 font-bold border-l-4 border-l-emerald-400 shadow-xs [&_svg]:text-emerald-300 [&_span]:text-emerald-300'
@@ -105,40 +92,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isStaffSectio
                   }
                 >
                   <Icon className="w-4 h-4 shrink-0" />
-                  <span className="tracking-wide">{item.name}</span>
+                  <span>{item.name}</span>
                 </NavLink>
               );
             })}
           </nav>
         </div>
 
-        {/* Technical Registry Box */}
-        <div
-          className={`p-3 rounded-md border text-[10px] font-mono space-y-1.5 ${
-            isStaffSection
-              ? 'bg-forensic-850 border-forensic-700 text-slate-400'
-              : 'bg-mist-100 border-eucalyptus-300 text-ink-700'
-          }`}
+        <p
+          className={`px-3 text-[11px] leading-relaxed ${isStaffSection ? 'text-slate-500' : 'text-ink-500'}`}
         >
-          <div className="flex items-center justify-between">
-            <span className="uppercase text-[9px] tracking-wider text-ink-500 [.theme-forensic_&]:text-slate-500">
-              System Core
-            </span>
-            <span className="font-semibold text-ink-900 [.theme-forensic_&]:text-slate-200">PostgreSQL 16</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="uppercase text-[9px] tracking-wider text-ink-500 [.theme-forensic_&]:text-slate-500">
-              Protocol
-            </span>
-            <span className="font-semibold text-forest-800 [.theme-forensic_&]:text-emerald-400 font-bold">Double-Entry</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="uppercase text-[9px] tracking-wider text-ink-500 [.theme-forensic_&]:text-slate-500">
-              Denomination
-            </span>
-            <span className="font-semibold text-ink-900 [.theme-forensic_&]:text-slate-200">INR (₹)</span>
-          </div>
-        </div>
+          {isStaff
+            ? "Fraud scores are advisory. Only staff decisions change an alert's status."
+            : 'All amounts in Indian rupees. Every posting is double-entry and permanent.'}
+        </p>
       </aside>
     </>
   );

@@ -22,7 +22,7 @@ FinLedger-AI combines Database Systems (DBMS) rigor, double-entry financial acco
      ├── PayeeGuard (Beneficiary Verification & Deviation Guard)
      ├── LedgerGraph (Point-In-Time Temporal Money-Flow Graph Engine)
      ├── Fraud Lab (Ephemeral In-Memory Multi-Model Benchmarking)
-     └── AI Health Governance (Readiness Fingerprinting & PSI Drift Monitoring)
+     └── AI Health Governance (Readiness Fingerprinting & Input Drift Monitoring)
            │  SQLAlchemy 2.0 / Alembic (Reversible Migrations)
            ▼
 [ PostgreSQL 16 Relational Engine (Sole Source of Truth) ]
@@ -44,15 +44,21 @@ Before presenting to evaluators, verify all services are active:
 curl http://127.0.0.1:8000/health
 # Expected: {"status":"healthy","service":"FinLedger-AI","environment":"development"}
 
-# 2. Run Comprehensive Automated Test Suite (138 Backend + 16 Frontend)
-.\.venv\Scripts\pytest.exe backend/tests -q
-# Expected: 138 passed in ~50s
+# 2. Run Comprehensive Automated Test Suite (164 Backend + 23 Frontend)
+cd backend
+..\.venv\Scripts\pytest.exe -q
+# Expected: 164 passed, 1 warning (third-party httpx deprecation notice)
 
-cd frontend
-npm run test -- --run
-# Expected: 16 passed across 5 test files
+cd ..\frontend
+npm test
+# Expected: 23 passed across 6 test files
 
-# 3. Check Ledger Mathematical Reconciliation
+# 3. Confirm the Random Forest model is loaded (not the rule fallback)
+#    Staff -> Model health should show "Random Forest" and a SHA-256 fingerprint.
+#    If it shows "Running on the rule baseline", run from backend/:
+#    ..\.venv\Scripts\python.exe -m ml.train --count 10000   then restart the API.
+
+# 4. Check Ledger Mathematical Reconciliation
 cd ..\backend
 ..\.venv\Scripts\python.exe scripts/reconcile_ledger.py
 # Expected: Discrepancy Count: 0, Global Net Ledger Delta: INR 0.00, Status: BALANCED
@@ -67,19 +73,19 @@ cd ..\backend
 - **Action**:
   - In browser at `http://localhost:5173/register`, register customer:
     - Full Name: `Vikram Patel`, Username: `vikram_patel`, Email: `vikram@finledger.io`, Password: `Password123!`.
-  - Log in at `/login`.
+  - Log in at `/login`, then click **Open savings account** on the dashboard.
 - **Expected Observation**:
-  - Redirects to **Customer Dashboard** (`/dashboard`).
-  - Automatically provisions primary `SAVINGS` account (e.g. `INR-SAV-XXXXXX-0001`).
-  - Cached balance is strictly **₹0.00**. Demonstrates that money is never manufactured during account creation.
+  - Registration creates the customer profile only; the account is opened explicitly.
+  - The new `SAVINGS` account (e.g. `INR-SAV-1A2B3C4D`) starts at exactly **₹0.00**. Demonstrates that money is never manufactured during account creation.
+  - Tip: open a second account (or register a second customer) to have a transfer recipient for Step 3.
 
 ---
 
 ### Step 2: Simulated Opening Deposit via Clearing Account
 - **Concept Demonstrated**: Strict Double-Entry Invariant ($\sum \text{Debits} == \sum \text{Credits}$).
 - **Action**:
-  - On Dashboard, click **"Deposit Funds"**.
-  - Amount: `₹100,000.00`, Memo: `Initial verified salary deposit`. Click **Confirm Deposit**.
+  - On Dashboard, click **"Deposit funds"**.
+  - Amount: `100000`, Description: `Initial verified salary deposit`. Click **Add deposit**.
 - **Expected Observation**:
   - Available balance updates atomically to **₹100,000.00**.
   - PostgreSQL trigger `trg_verify_ledger_balance` verifies balanced debit and credit legs at commit:
@@ -91,18 +97,18 @@ cd ..\backend
 ### Step 3: PayeeGuard Beneficiary Verification Preview (Innovation B)
 - **Concept Demonstrated**: Pre-transfer recipient verification preventing misdirected payments and impersonation scams (NPCI UPI Addendum 101/A & RBI FREE-AI aligned).
 - **Action**:
-  - Navigate to **Money Transfers** (`/transfers`) $\to$ Click **"Send Money"**.
-  - Select Source Account holding ₹100,000.00.
-  - Enter Destination Account ID (e.g. valid destination UUID).
-  - Amount: `₹25,000.00`.
-  - Click **"Review Transfer"**.
+  - Navigate to **Transfers** (`/transfers`) $\to$ Click **"New transfer"**.
+  - **From**: the account holding ₹100,000.00.
+  - **To account number**: the recipient's account number (e.g. `INR-SAV-1A2B3C4D`), or pick one of your own accounts from the shortcut chips. Customers never need internal UUIDs.
+  - Amount: `25000`.
+  - Click **"Review transfer"**.
 - **Expected Observation**:
   - The modal invokes `POST /api/v1/transfers/preview` on the backend without moving any funds.
   - Displays authoritative **PayeeGuard Verification** card:
     - Legal Beneficiary Name (e.g. `Aarav Sharma` or verified account holder from database).
-    - Masked Destination Account: `ACC-SAV-••••77`.
-    - Safety Status: `First-Time Recipient` or `Known Payee (N prior transfers)`.
-    - Verification Provider: `Internal FinLedger-AI Account Holder Verification`.
+    - Masked Destination Account (e.g. `INR-••••C4D`).
+    - Relationship: first-time recipient, or how many times you have paid this account before.
+    - Funds are checked here too: an amount above the available balance is refused before anything is submitted.
     - Advisory Warnings if amount deviates significantly from counterparty baseline.
 
 ---
@@ -110,12 +116,12 @@ cd ..\backend
 ### Step 4: Transfer Execution & Digital Receipt Inspection
 - **Concept Demonstrated**: Atomic transfer execution under canonical row locks with immediate receipt generation.
 - **Action**:
-  - In review modal, inspect the assigned `Idempotency Key` (`UUIDv4`).
-  - Click **"Confirm & Post Transfer"**.
+  - In review modal, inspect the assigned `Idempotency key` (`UUIDv4`).
+  - Click **"Send ₹25,000.00"**.
 - **Expected Observation**:
   - Transfer posts atomically with status `POSTED`.
   - Balance decrements: ₹100,000.00 $\to$ **₹75,000.00**.
-  - Displays server-generated receipt with Transfer Reference, timestamp, and confirmation.
+  - Displays the receipt (reference, status, posted time); the transfer appears at the top of the **Transfers** history.
 
 ---
 
@@ -132,11 +138,13 @@ cd ..\backend
 ### Step 6: Overdraft Prevention & Autonomous Audit Persistence
 - **Concept Demonstrated**: Check constraints (`cached_balance >= 0.00`) and independent audit persistence for failed transactions.
 - **Action**:
-  - Attempt to send `₹500,000.00` (exceeding available ₹75,000.00).
+  - In the UI, try to send `500000` (exceeding the available ₹75,000.00): PayeeGuard refuses it at the review step, before any request is submitted.
+  - To show the server-side guarantee, submit the same over-limit transfer directly via Swagger (`POST /api/v1/transfers`, customer token, fresh `Idempotency-Key`).
 - **Expected Observation**:
   - Rejection with HTTP 400 Bad Request: `Insufficient funds`.
   - Financial transaction is completely rolled back; balance remains **₹75,000.00**.
-  - Independent audit transaction records failure event `TRANSFER_FAILED` in `audit_logs` for non-repudiation.
+  - Independent audit transaction records failure event `TRANSFER_FAILED` in `audit_logs`, and the attempt appears in the customer's **Transfers** history as **Declined** with its reason.
+  - Replaying the same `Idempotency-Key` returns the original failure, never a success.
 
 ---
 
@@ -186,14 +194,14 @@ cd ..\backend
 ### Step 10: Unified Forensic Investigation Dossier (Innovation C)
 - **Concept Demonstrated**: Traceable evidence connecting every alert to source ledger legs and human decisions.
 - **Action**:
-  - Navigate to **Fraud Alert Triage** (`/staff/fraud`).
-  - Click **"Forensic Dossier"** on any flagged alert.
+  - Navigate to **Fraud alerts** (`/staff/fraud`).
+  - Click **"Open dossier"** on any alert.
 - **Expected Observation**:
   - Dossier drawer opens with complete evidentiary layers:
     1. **Statistical Rationale & Model Version**: Risk score, decision, and feature snapshot.
     2. **Authoritative Double-Entry Ledger Legs**: PostgreSQL source of truth displaying balanced `DEBIT` and `CREDIT` legs with account numbers.
     3. **LedgerGraph Findings**: Associated network patterns and severity scores.
-    4. **Chronological Evidentiary Timeline**: Categorizes `FACT` (PostgreSQL records), `STATISTICAL_MODEL` (ML score), `HEURISTIC_RULE` (rule flags), and `HUMAN_DECISION`.
+    4. **Chronological Evidentiary Timeline**: Each entry is labelled by source: ledger fact, rule, model, LedgerGraph, or staff action.
     5. **Forensic Notes**: Append-only investigator commentary.
 
 ---
@@ -201,8 +209,8 @@ cd ..\backend
 ### Step 11: Authorized Staff Determination with Mandatory Notes
 - **Concept Demonstrated**: Human-in-the-loop review governance; AI is advisory only.
 - **Action**:
-  - In Forensic Dossier, select Determination: `CONFIRMED_FRAUD`.
-  - Enter Notes: `Identified coordinated pass-through pattern matching mule account typology. Confirmed for escalation.`
+  - In Forensic Dossier, choose **Confirm fraud**.
+  - Enter a Reason (required): `Identified coordinated pass-through pattern matching mule account typology. Confirmed for escalation.`
   - Click **Commit Determination**.
 - **Expected Observation**:
   - Review status updates to `CONFIRMED_FRAUD`.
@@ -215,9 +223,9 @@ cd ..\backend
 - **Concept Demonstrated**: Customer right to contest transactions without arbitrary balance mutations.
 - **Action**:
   - Switch to Customer Portal (`/transfers`).
-  - Search a transfer receipt $\to$ Click **"File Recourse Dispute"**.
-  - Category: `UNAUTHORIZED`, Description: `Transaction executed from unrecognized IP while traveling.` Click **Submit**.
-  - Navigate to **Recourse & Disputes** (`/disputes`).
+  - In the history, click **Dispute** on a posted transfer.
+  - Problem: *I didn't make this transfer*, Description: `Transaction executed from unrecognized IP while traveling.` Click **Open dispute**.
+  - Navigate to **Disputes** (`/disputes`).
 - **Expected Observation**:
   - Dispute case opened with status `OPEN`.
   - Chronological append-only case event logged (`DISPUTE_OPENED`).
@@ -229,22 +237,27 @@ cd ..\backend
 ### Step 13: Staff Dispute Investigation & Resolution
 - **Concept Demonstrated**: Controlled case lifecycle (`OPEN` $\to$ `INVESTIGATING` $\to$ `RESOLVED`).
 - **Action (Staff)**:
-  - In Staff API or UI, update dispute status to `INVESTIGATING` with investigative note, then to `RESOLVED`.
+  - As staff, open **Disputes** (`/staff/disputes`), select the case, choose **Start investigating** with a note, then **Resolve in the customer’s favour** with a note.
 - **Expected Observation**:
   - Immutable `case_events` record each state transition with actor role and timestamp.
-  - Any financial correction must follow a separate, balanced `CORRECTION_REVERSAL` transaction.
+  - Resolving records the decision only; no money moves.
+- **Action (Admin correction)**:
+  - Sign in as `admin_system`, open the same case in **Disputes**, enter a reason under **Correct the ledger**, click **Reverse transfer**, then **Confirm reversal**.
+- **Expected Observation**:
+  - A new balanced `CORRECTION_REVERSAL` posting moves the amount back; the original ledger legs are untouched and the original transfer shows **Reversed** in the customer's history.
+  - `TRANSFER_REVERSED` is written to the audit trail in the same database transaction. A second attempt is refused (HTTP 409), staff users get HTTP 403, and Reconciliation still reports zero discrepancies.
 
 ---
 
 ### Step 14: AI Runtime Health & Governance Dashboard (Innovation E)
 - **Concept Demonstrated**: Production AI transparency, artifact fingerprinting, and feature drift monitoring.
 - **Action**:
-  - Navigate to **AI Health & Governance** (`/staff/ai-health`).
+  - Navigate to **Model health** (`/staff/ai-health`).
 - **Expected Observation**:
   - Model Runtime State: Active model version (`rf-v1.0.0`) and SHA-256 artifact fingerprint.
   - Fallback Mode Disclosure: Transparently discloses if deterministic rules are operating in failsafe mode.
-  - Active Feature Schema: Lists all 8 tabular feature signals.
-  - Feature Distribution Drift: Population Stability Index (PSI) scores for key features (e.g. `amount_log`, `velocity_1h`, `zscore_amount`).
+  - Model inputs: lists the 12 tabular features the Random Forest uses.
+  - Input drift: distribution status and the mean amount of recent scored transfers, compared with the synthetic training baseline. (A full per-feature PSI is not computed.)
   - Documented Academic Limitations: Discloses that models are advisory and synthetic evaluations do not equate to real-world efficacy.
 
 ---
@@ -299,5 +312,5 @@ cd ..\backend
 | **Innovation C: Evidence Dossier** | Multi-Layer Evidentiary Timeline | `pytest test_innovations_fraud_lab_and_health.py` | **PASS** (Source-Linked) |
 | **Innovation C: Recourse Workflow** | Append-Only Case Event Lifecycle | `pytest test_innovations_disputes.py` | **PASS** (Audited Recourse) |
 | **Innovation D: Fraud Lab** | Ephemeral Multi-Model Benchmarking | `pytest test_innovations_fraud_lab_and_health.py` | **PASS** (Ledger Isolated) |
-| **Innovation E: AI Health** | Runtime Fingerprinting & PSI Drift | `pytest test_innovations_fraud_lab_and_health.py` | **PASS** (Transparent Disclosure) |
+| **Innovation E: AI Health** | Runtime Fingerprinting & Input Drift | `pytest test_innovations_fraud_lab_and_health.py` | **PASS** (Transparent Disclosure) |
 | **Editorial Frontend** | React 19 + TypeScript + Tabular Numerals | `npm run test` + `npm run build` | **PASS** (16/16 Tests, Clean Build) |

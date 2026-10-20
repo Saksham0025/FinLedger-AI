@@ -58,13 +58,13 @@ export const Badge: React.FC<BadgeProps> = ({
   };
 
   const sizeStyles = {
-    sm: 'text-[10px] px-1.5 py-0.5',
-    md: 'text-xs px-2 py-0.5 font-medium',
+    sm: 'text-[11px] px-1.5 py-0.5 font-semibold',
+    md: 'text-xs px-2 py-0.5 font-semibold',
   };
 
   return (
     <span
-      className={`inline-flex items-center rounded border tracking-wider uppercase font-mono ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+      className={`inline-flex items-center rounded border tracking-wide uppercase whitespace-nowrap ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
     >
       {children}
     </span>

@@ -27,6 +27,7 @@ import { SystemAccountsPage } from './pages/staff/SystemAccountsPage';
 import { AuditLogsPage } from './pages/staff/AuditLogsPage';
 import { ReconciliationPage } from './pages/staff/ReconciliationPage';
 import { ReportsAnalyticsPage } from './pages/staff/ReportsAnalyticsPage';
+import { StaffDisputesPage } from './pages/staff/StaffDisputesPage';
 
 const RootRedirect: React.FC = () => {
   const { isAuthenticated, isStaff, isLoading } = useAuth();
@@ -140,6 +141,14 @@ export const App: React.FC = () => {
               element={
                 <ProtectedRoute requiredRole="STAFF">
                   <AIHealthPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/staff/disputes"
+              element={
+                <ProtectedRoute requiredRole="STAFF">
+                  <StaffDisputesPage />
                 </ProtectedRoute>
               }
             />

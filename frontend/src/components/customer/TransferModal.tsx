@@ -3,22 +3,11 @@ import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { CurrencyDisplay } from '../common/CurrencyDisplay';
 import { ErrorBanner } from '../common/ErrorBanner';
-import { Badge } from '../common/Badge';
 import { Account, TransferRequest, PayeePreviewResponse } from '../../types/api';
 import { transfersApi } from '../../api/transfers';
-import { generateUUID } from '../../utils/formatters';
-import { getErrorMessage } from '../../api/client';
-import {
-  ArrowRight,
-  ArrowLeft,
-  CheckCircle2,
-  RefreshCw,
-  ShieldCheck,
-  Lock,
-  UserCheck,
-  AlertTriangle,
-  BookOpen,
-} from 'lucide-react';
+import { generateUUID, parseAmountInput } from '../../utils/formatters';
+import { getErrorMessage, isDefinitiveRejection } from '../../api/client';
+import { ArrowRight, ArrowLeft, CheckCircle2, ShieldCheck, UserCheck, AlertTriangle } from 'lucide-react';
 
 interface TransferModalProps {
   isOpen: boolean;
@@ -29,22 +18,27 @@ interface TransferModalProps {
 
 type TransferStep = 1 | 2 | 3;
 
-export const TransferModal: React.FC<TransferModalProps> = ({
-  isOpen,
-  onClose,
-  accounts,
-  onTransferSuccess,
-}) => {
+const STEPS: Record<TransferStep, string> = {
+  1: 'Details',
+  2: 'Check and confirm',
+  3: 'Receipt',
+};
+
+const inputClass =
+  'w-full bg-surface border border-hairline rounded px-3 py-2 text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 transition-colors';
+
+export const TransferModal: React.FC<TransferModalProps> = ({ isOpen, onClose, accounts, onTransferSuccess }) => {
   const eligibleSources = accounts.filter(
     (a) => a.status === 'ACTIVE' && a.account_type !== 'INTERNAL_CLEARING' && a.account_type !== 'INVESTMENT'
   );
 
   const [step, setStep] = useState<TransferStep>(1);
   const [sourceAccountId, setSourceAccountId] = useState<string>('');
-  const [destinationAccountId, setDestinationAccountId] = useState<string>('');
+  const [recipientNumber, setRecipientNumber] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   const [memo, setMemo] = useState<string>('');
 
+  // One key per transfer attempt: replays of the same attempt can never post twice
   const [idempotencyKey, setIdempotencyKey] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState<boolean>(false);
@@ -66,43 +60,36 @@ export const TransferModal: React.FC<TransferModalProps> = ({
   }, [isOpen]);
 
   const selectedSource = accounts.find((a) => a.id === sourceAccountId) || eligibleSources[0];
+  const ownOtherAccounts = eligibleSources.filter((a) => a.id !== selectedSource?.id);
+  const canonicalAmount = parseAmountInput(amount);
 
-  // Step 1 Validation -> Fetch PayeeGuard Preview -> Step 2
   const handleProceedToReview = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setError(null);
 
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      setError('Amount must be strictly greater than ₹0.00.');
+    if (!canonicalAmount) {
+      setError('Enter an amount greater than ₹0.00, with at most two decimal places.');
       return;
     }
 
-    const dest = destinationAccountId.trim();
-    if (!dest) {
-      setError('Please provide a destination account UUID or reference.');
+    const recipient = recipientNumber.trim().toUpperCase();
+    if (!recipient) {
+      setError("Enter the recipient's account number.");
       return;
     }
 
-    const activeSourceId = sourceAccountId || selectedSource?.id;
-    if (activeSourceId === dest) {
-      setError('Source and destination accounts must be distinct.');
-      return;
-    }
-
-    if (selectedSource && parsedAmount > parseFloat(String(selectedSource.cached_balance))) {
-      setError(
-        `Insufficient funds: Available balance is ₹${parseFloat(String(selectedSource.cached_balance)).toLocaleString('en-IN')}, requested ₹${parsedAmount.toLocaleString('en-IN')}.`
-      );
+    if (selectedSource && recipient === selectedSource.account_number.toUpperCase()) {
+      setError('Choose a different account to send to. The source and recipient must be different accounts.');
       return;
     }
 
     setIsPreviewLoading(true);
     try {
+      // PayeeGuard resolves the number, confirms the account holder and checks funds before anything moves
       const preview = await transfersApi.previewTransfer({
-        source_account_id: activeSourceId,
-        destination_account_id: dest,
-        amount: parsedAmount.toFixed(2),
+        source_account_id: selectedSource.id,
+        destination_account_number: recipient,
+        amount: canonicalAmount,
       });
       setPreviewData(preview);
       setStep(2);
@@ -113,18 +100,17 @@ export const TransferModal: React.FC<TransferModalProps> = ({
     }
   };
 
-  // Step 2 Execution -> Step 3 (Receipt)
   const handleExecuteTransfer = async () => {
+    if (!previewData || !canonicalAmount) return;
     setIsLoading(true);
     setError(null);
 
-    const activeSourceId = sourceAccountId || selectedSource?.id;
     try {
       const result = await transfersApi.createTransfer(
         {
-          source_account_id: activeSourceId,
-          destination_account_id: destinationAccountId.trim(),
-          amount: parseFloat(amount).toFixed(2),
+          source_account_id: selectedSource.id,
+          destination_account_id: previewData.destination_account_id,
+          amount: canonicalAmount,
           currency: 'INR',
           memo: memo.trim() || undefined,
         },
@@ -136,6 +122,11 @@ export const TransferModal: React.FC<TransferModalProps> = ({
       onTransferSuccess?.();
     } catch (err: unknown) {
       setError(getErrorMessage(err));
+      // A rejected attempt is recorded under its key; a corrected retry is a new attempt.
+      // Ambiguous failures (network, 5xx) keep the key so retrying is always safe.
+      if (isDefinitiveRejection(err)) {
+        setIdempotencyKey(generateUUID());
+      }
     } finally {
       setIsLoading(false);
     }
@@ -145,144 +136,124 @@ export const TransferModal: React.FC<TransferModalProps> = ({
     setIdempotencyKey(generateUUID());
     setAmount('');
     setMemo('');
-    setDestinationAccountId('');
+    setRecipientNumber('');
     setStep(1);
     setError(null);
     setReceipt(null);
     setPreviewData(null);
   };
 
-  const handleViewPassbook = () => {
-    onClose();
-    if (typeof window !== 'undefined') {
-      window.location.href = '/accounts';
-    }
-  };
-
-  const stepTitles = {
-    1: 'Step 01 // Initiation & Transfer Details',
-    2: 'Step 02 // Review & Settlement Authorization',
-    3: 'Step 03 // Official Settlement Voucher',
-  };
-
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={stepTitles[step]}
-      description="Atomic financial transfer executed under PostgreSQL row locks with scoped idempotency."
+      title={step === 3 ? 'Transfer sent' : 'Send money'}
+      description={`Step ${step} of 3: ${STEPS[step]}`}
       maxWidth="lg"
     >
-      {/* Deliberate Progression Indicator */}
-      <div className="mb-5 pb-3 border-b border-hairline font-mono text-[10px]">
-        <div className="flex items-center justify-between text-ink-500 mb-2">
-          <span className={`flex items-center gap-1.5 ${step >= 1 ? 'font-bold text-forest-800' : ''}`}>
-            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${step >= 1 ? 'bg-forest-800 text-white font-bold' : 'bg-parchment-300 text-ink-600'}`}>
-              1
+      <ol className="mb-5 grid grid-cols-3 gap-2" aria-label="Transfer progress">
+        {([1, 2, 3] as TransferStep[]).map((n) => (
+          <li key={n} aria-current={n === step ? 'step' : undefined}>
+            <span className={`block h-1 rounded-full ${n <= step ? 'bg-forest-800' : 'bg-parchment-300'}`} />
+            <span className={`block mt-1.5 text-xs ${n === step ? 'font-semibold text-forest-900' : 'text-ink-500'}`}>
+              {STEPS[n]}
             </span>
-            01 RECIPIENT & DETAILS
-          </span>
-          <span className="text-hairline font-bold">→</span>
-          <span className={`flex items-center gap-1.5 ${step >= 2 ? 'font-bold text-forest-800' : ''}`}>
-            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${step >= 2 ? 'bg-forest-800 text-white font-bold' : 'bg-parchment-300 text-ink-600'}`}>
-              2
-            </span>
-            02 PRE-COMMIT REVIEW
-          </span>
-          <span className="text-hairline font-bold">→</span>
-          <span className={`flex items-center gap-1.5 ${step >= 3 ? 'font-bold text-forest-800' : ''}`}>
-            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${step >= 3 ? 'bg-forest-800 text-white font-bold' : 'bg-parchment-300 text-ink-600'}`}>
-              3
-            </span>
-            03 SETTLEMENT RECEIPT
-          </span>
-        </div>
-
-        {/* Progress bar line */}
-        <div className="w-full bg-parchment-200 h-1.5 rounded-full overflow-hidden">
-          <div
-            className="bg-forest-800 h-full transition-all duration-300"
-            style={{ width: `${(step / 3) * 100}%` }}
-          />
-        </div>
-      </div>
+          </li>
+        ))}
+      </ol>
 
       {error && <ErrorBanner message={error} className="mb-4" />}
 
-      {/* STEP 1: Beneficiary, Amount & Details Form */}
       {step === 1 && (
-        <form onSubmit={handleProceedToReview} noValidate className="space-y-4 font-sans text-xs">
+        <form onSubmit={handleProceedToReview} noValidate className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-ink-900 uppercase tracking-wider mb-1 font-mono">
-              Source Funding Passbook
+            <label htmlFor="transfer-source" className="block text-sm font-medium text-ink-800 mb-1">
+              From
             </label>
             <select
-              value={sourceAccountId || selectedSource?.id || ''}
+              id="transfer-source"
+              value={selectedSource?.id || ''}
               onChange={(e) => setSourceAccountId(e.target.value)}
-              className="w-full bg-surface border border-hairline rounded px-3 py-2 text-xs font-mono text-ink-950 focus:outline-none focus:border-forest-800"
+              className={inputClass}
             >
               {eligibleSources.map((acc) => (
                 <option key={acc.id} value={acc.id}>
-                  {acc.account_number} ({acc.account_type}) — Available: ₹
-                  {parseFloat(String(acc.cached_balance)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  {acc.account_number}, available ₹
+                  {Number(acc.cached_balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </option>
               ))}
             </select>
-            {selectedSource && (
-              <p className="text-[11px] font-mono text-ink-500 mt-1">
-                Account UUID: {selectedSource.id}
-              </p>
+          </div>
+
+          <div>
+            <label htmlFor="transfer-recipient" className="block text-sm font-medium text-ink-800 mb-1">
+              To account number
+            </label>
+            <input
+              id="transfer-recipient"
+              type="text"
+              autoComplete="off"
+              value={recipientNumber}
+              onChange={(e) => setRecipientNumber(e.target.value)}
+              placeholder="INR-SAV-1A2B3C4D"
+              className={`${inputClass} font-mono uppercase placeholder:normal-case`}
+              aria-describedby="transfer-recipient-hint"
+            />
+            <p id="transfer-recipient-hint" className="text-xs text-ink-500 mt-1">
+              We&apos;ll show you the account holder&apos;s name before any money moves.
+            </p>
+            {ownOtherAccounts.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-ink-600">
+                <span>Your accounts:</span>
+                {ownOtherAccounts.map((acc) => (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    onClick={() => setRecipientNumber(acc.account_number)}
+                    className="font-mono px-2 py-0.5 rounded border border-hairline bg-parchment-50 hover:border-forest-700 cursor-pointer"
+                  >
+                    {acc.account_number}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-ink-900 uppercase tracking-wider mb-1 font-mono">
-              Destination Account ID (UUID)
-            </label>
-            <input
-              type="text"
-              value={destinationAccountId}
-              onChange={(e) => setDestinationAccountId(e.target.value)}
-              placeholder="e.g. 12345678-1234-5678-1234-567812345678"
-              className="w-full bg-surface border border-hairline rounded px-3 py-2 text-xs font-mono text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 transition-colors"
-            />
-            <p className="text-[11px] text-ink-500 mt-1">
-              Recipient identity will be verified against core ledger records before commitment.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-ink-900 uppercase tracking-wider mb-1 font-mono">
-              Transfer Amount (INR ₹)
+            <label htmlFor="transfer-amount" className="block text-sm font-medium text-ink-800 mb-1">
+              Amount
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-2 text-ink-400 font-mono text-xs">₹</span>
+              <span className="absolute left-3 top-2 text-ink-500 text-sm" aria-hidden="true">₹</span>
               <input
-                type="number"
-                step="0.01"
+                id="transfer-amount"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full bg-surface border border-hairline rounded pl-7 pr-3 py-2 text-xs font-mono text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-forest-800 transition-colors tabular-nums font-semibold"
+                className={`${inputClass} pl-7 tabular-nums`}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-ink-900 uppercase tracking-wider mb-1 font-sans">
-              Memo / Narrative (Optional)
+            <label htmlFor="transfer-memo" className="block text-sm font-medium text-ink-800 mb-1">
+              Note <span className="font-normal text-ink-500">(optional)</span>
             </label>
             <input
+              id="transfer-memo"
               type="text"
               maxLength={255}
               value={memo}
               onChange={(e) => setMemo(e.target.value)}
-              placeholder="e.g. Consulting honorarium, commercial settlement"
-              className="w-full bg-surface border border-hairline rounded px-3 py-2 text-xs text-ink-950 font-sans placeholder:text-ink-400 focus:outline-none focus:border-forest-800 transition-colors"
+              placeholder="What's this for?"
+              className={inputClass}
             />
           </div>
 
-          <div className="pt-3 border-t border-hairline flex items-center justify-end gap-3 font-sans">
+          <div className="pt-3 border-t border-hairline flex items-center justify-end gap-3">
             <Button variant="secondary" size="sm" type="button" onClick={onClose}>
               Cancel
             </Button>
@@ -291,113 +262,84 @@ export const TransferModal: React.FC<TransferModalProps> = ({
               size="sm"
               type="submit"
               isLoading={isPreviewLoading}
-              rightIcon={<ArrowRight className="w-4 h-4 text-white" />}
+              rightIcon={<ArrowRight className="w-4 h-4" />}
             >
-              Review Transfer
+              Review transfer
             </Button>
           </div>
         </form>
       )}
 
-      {/* STEP 2: PayeeGuard Pre-Transfer Verification & Final Confirmation */}
       {step === 2 && previewData && (
-        <div className="space-y-4 font-sans text-xs">
-          {/* Deep Forest Signature Verification Panel */}
-          <div className="p-4 rounded-lg bg-forest-900 text-white space-y-3.5 border border-forest-950 shadow-hero">
-            <div className="flex items-center justify-between border-b border-forest-800 pb-2.5">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-bold uppercase tracking-wider text-white font-mono">
-                  PayeeGuard Verification
-                </span>
-              </div>
-              <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-forest-950 text-emerald-300 border border-forest-700 font-bold">
-                {previewData.validation_status}
+        <div className="space-y-4">
+          <section className="p-4 rounded-md bg-forest-900 text-white space-y-3" aria-label="PayeeGuard check">
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <ShieldCheck className="w-4 h-4 text-forest-300" aria-hidden="true" /> PayeeGuard check
+              </span>
+              <span className="text-xs text-forest-200">
+                {previewData.validation_status === 'VERIFIED_ELIGIBLE' ? 'Account verified' : previewData.validation_status}
               </span>
             </div>
-
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <span className="text-forest-200 block text-[10px] uppercase font-sans">
-                  Authoritative Legal Beneficiary
-                </span>
-                <span className="font-bold text-white text-sm font-sans flex items-center gap-1.5 mt-0.5">
-                  <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="block text-xs text-forest-200">You are paying</span>
+                <span className="flex items-center gap-1.5 text-lg font-serif font-semibold">
+                  <UserCheck className="w-4 h-4 text-forest-300 shrink-0" aria-hidden="true" />
                   {previewData.recipient_legal_name}
                 </span>
               </div>
-              <div>
-                <span className="text-forest-200 block text-[10px] uppercase font-sans">
-                  Masked Account Reference
-                </span>
-                <span className="text-white font-mono text-xs mt-0.5 block font-bold">
-                  {previewData.masked_account_number}
-                </span>
-              </div>
+              <span className="font-mono text-sm text-sage-100">{previewData.masked_account_number}</span>
             </div>
+            <p className="text-xs text-forest-100">
+              {previewData.is_first_time_recipient
+                ? "You haven't sent money to this account before."
+                : `You've sent money to this account ${previewData.prior_transfers_count} ${previewData.prior_transfers_count === 1 ? 'time' : 'times'} before.`}
+            </p>
 
-            <div className="flex items-center justify-between text-[11px] pt-1 border-t border-forest-800/80">
-              {previewData.is_first_time_recipient ? (
-                <span className="px-2 py-0.5 rounded text-[10px] font-sans font-bold uppercase bg-amber-500/20 text-amber-200 border border-amber-400/40">
-                  First-Time Recipient
+            {previewData.advisory_warnings.length > 0 && (
+              <div className="p-3 rounded bg-amber-950/60 border border-amber-500/50 text-amber-100 text-xs space-y-1" role="note">
+                <span className="flex items-center gap-1 font-semibold text-amber-200">
+                  <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" /> Before you send
                 </span>
-              ) : (
-                <span className="px-2 py-0.5 rounded text-[10px] font-sans font-bold uppercase bg-forest-950 text-forest-200 border border-forest-700">
-                  Established Beneficiary ({previewData.total_historical_transfers ?? 0} prior transfers)
-                </span>
-              )}
-              <span className="text-forest-200 text-[10px] font-sans">
-                Verified against core ledger directory
-              </span>
-            </div>
-
-            {/* Advisory Warnings (if any) */}
-            {previewData.advisory_warnings && previewData.advisory_warnings.length > 0 && (
-              <div className="p-3 rounded bg-amber-950/70 border border-amber-500/60 text-amber-100 text-xs space-y-1">
-                <span className="font-bold text-[10px] block uppercase tracking-wider text-amber-300 font-mono flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5" /> Advisory Alert:
-                </span>
-                {previewData.advisory_warnings.map((warn, i) => (
-                  <p key={i} className="text-[11px] text-amber-200 leading-tight">
-                    • {warn}
-                  </p>
-                ))}
+                <ul className="list-disc pl-4 space-y-0.5">
+                  {previewData.advisory_warnings.map((warn) => (
+                    <li key={warn}>{warn}</li>
+                  ))}
+                </ul>
               </div>
             )}
-          </div>
+          </section>
 
-          {/* Amount & Account Alignment Line */}
-          <div className="p-4 rounded-md bg-mist-100 border-2 border-eucalyptus-300 space-y-2.5">
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-forest-700 font-mono font-medium">Source Account</span>
-              <span className="font-mono font-bold text-forest-950">{selectedSource?.account_number}</span>
+          <dl className="p-4 rounded-md bg-surface border border-hairline space-y-2.5 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-600">From</dt>
+              <dd className="font-mono text-ink-950">{selectedSource?.account_number}</dd>
             </div>
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-forest-700 font-mono font-medium">Authorized Amount</span>
-              <CurrencyDisplay amount={amount} size="md" colored className="font-bold font-mono tabular-nums text-sm" />
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-600">Amount</dt>
+              <dd>
+                <CurrencyDisplay amount={canonicalAmount ?? '0'} size="lg" className="text-forest-950" />
+              </dd>
             </div>
             {memo && (
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-forest-700 font-sans font-medium">Transaction Memo</span>
-                <span className="text-forest-950 font-medium">{memo}</span>
+              <div className="flex justify-between gap-4">
+                <dt className="text-ink-600">Note</dt>
+                <dd className="text-ink-950 text-right">{memo}</dd>
               </div>
             )}
-            <div className="border-t border-eucalyptus-200 pt-2 flex justify-between items-center text-[10px] text-forest-700 font-mono">
-              <span className="flex items-center gap-1">
-                <Lock className="w-3 h-3 text-forest-800" /> Idempotency Key:
-              </span>
-              <span className="truncate max-w-[220px] text-forest-950 font-bold">{idempotencyKey}</span>
+            <div className="flex justify-between gap-4 pt-2 border-t border-hairline-subtle text-xs">
+              <dt className="text-ink-500">Idempotency key</dt>
+              <dd className="font-mono text-ink-700 truncate max-w-[240px]" title={idempotencyKey}>
+                {idempotencyKey}
+              </dd>
             </div>
-          </div>
+          </dl>
+          <p className="text-xs text-ink-500">
+            If your connection drops, confirming again is safe: the key above makes sure this transfer posts once.
+          </p>
 
-          <div className="p-3 rounded bg-sage-200 border border-eucalyptus-400 text-[11px] text-forest-900 flex items-center gap-2 font-medium">
-            <ShieldCheck className="w-4 h-4 text-forest-800 shrink-0" />
-            <span>
-              Transactional Invariant: Accounts locked in ascending PK order. Balance updated atomically with ledger posting legs.
-            </span>
-          </div>
-
-          <div className="pt-3 border-t border-eucalyptus-300 flex items-center justify-between gap-3 font-sans">
+          <div className="pt-3 border-t border-hairline flex items-center justify-between gap-3">
             <Button
               variant="secondary"
               size="sm"
@@ -408,101 +350,49 @@ export const TransferModal: React.FC<TransferModalProps> = ({
             >
               Back
             </Button>
-            <div className="flex items-center gap-2">
-              {error && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleExecuteTransfer}
-                  isLoading={isLoading}
-                  leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-                >
-                  Retry
-                </Button>
-              )}
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleExecuteTransfer}
-                isLoading={isLoading}
-                className="font-bold shadow-sm"
-              >
-                Confirm & Post Transfer
-              </Button>
-            </div>
+            <Button variant="primary" size="sm" onClick={handleExecuteTransfer} isLoading={isLoading}>
+              {error ? 'Try again' : `Send ₹${Number(canonicalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+            </Button>
           </div>
         </div>
       )}
 
-      {/* STEP 3: Server Settlement Voucher Receipt */}
       {step === 3 && receipt && (
-        <div className="space-y-4 font-sans text-xs">
-          {/* Official Passbook Voucher Frame */}
-          <div className="p-6 rounded-lg bg-gradient-to-br from-forest-900 via-forest-800 to-forest-900 border-2 border-forest-950 text-white flex flex-col items-center gap-2.5 text-center shadow-hero relative overflow-hidden">
-            <div className="w-12 h-12 rounded-full bg-forest-950 border border-forest-700 flex items-center justify-center text-emerald-400">
-              <CheckCircle2 className="w-7 h-7" />
-            </div>
-
-            <div>
-              <span className="text-[10px] font-mono tracking-widest uppercase text-sage-200 font-bold block">
-                OFFICIAL SETTLEMENT VOUCHER
-              </span>
-              <h4 className="text-lg font-serif font-bold text-white">
-                Transfer Committed & Balanced
-              </h4>
-            </div>
-
-            <div className="mt-1">
-              <CurrencyDisplay amount={receipt.amount} size="2xl" className="font-serif font-bold text-2xl text-white" />
-            </div>
-
-            <p className="text-xs text-sage-100 max-w-sm mt-0.5">
-              Balanced double-entry posting committed immutably under PostgreSQL deferred constraint trigger.
+        <div className="space-y-4">
+          <div className="p-6 rounded-md ledger-hero-green flex flex-col items-center gap-2 text-center">
+            <CheckCircle2 className="w-8 h-8 text-forest-300" aria-hidden="true" />
+            <CurrencyDisplay amount={receipt.amount} size="2xl" className="text-white" />
+            <p className="text-sm text-sage-100">
+              sent to {previewData?.recipient_legal_name ?? 'the recipient'}. The debit and credit were posted together.
             </p>
           </div>
 
-          {/* Receipt Data Table */}
-          <div className="p-4 rounded-md bg-mist-100 border-2 border-eucalyptus-300 space-y-2 text-xs">
-            <div className="flex justify-between items-center">
-              <span className="text-forest-700 font-mono text-[11px] font-medium">Voucher Reference</span>
-              <span className="text-forest-950 font-bold font-mono">{receipt.id}</span>
+          <dl className="p-4 rounded-md bg-surface border border-hairline space-y-2 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-600">Reference</dt>
+              <dd className="font-mono text-xs text-ink-950 truncate max-w-[260px]" title={receipt.id}>
+                {receipt.id}
+              </dd>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-forest-700 font-mono text-[11px] font-medium">Settlement Status</span>
-              <Badge variant="forest" size="sm">
-                {receipt.status}
-              </Badge>
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-600">Status</dt>
+              <dd className="text-forest-800 font-semibold">{receipt.status === 'POSTED' ? 'Posted' : receipt.status}</dd>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-forest-700 font-mono text-[11px] font-medium">Committed At</span>
-              <span className="text-forest-900 font-mono text-[11px]">
-                {receipt.posted_at ? new Date(receipt.posted_at).toLocaleString('en-IN') : 'Now'}
-              </span>
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-600">Posted at</dt>
+              <dd className="text-ink-950">
+                {receipt.posted_at ? new Date(receipt.posted_at).toLocaleString('en-IN') : 'Just now'}
+              </dd>
             </div>
-            <div className="flex justify-between items-center border-t border-eucalyptus-200 pt-2 text-[10px] text-forest-700 font-mono">
-              <span>Audit Action</span>
-              <span className="font-bold text-forest-900">TRANSFER_POSTED</span>
-            </div>
-          </div>
+          </dl>
 
-          <div className="flex items-center justify-between gap-3 pt-3 border-t border-hairline font-sans">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleViewPassbook}
-              leftIcon={<BookOpen className="w-3.5 h-3.5 text-forest-800" />}
-            >
-              View in Passbook Ledger
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-hairline">
+            <Button variant="secondary" size="sm" onClick={handleResetForNewTransfer}>
+              Send another
             </Button>
-
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" onClick={handleResetForNewTransfer}>
-                New Transfer
-              </Button>
-              <Button variant="primary" size="sm" onClick={onClose}>
-                Done
-              </Button>
-            </div>
+            <Button variant="primary" size="sm" onClick={onClose}>
+              Done
+            </Button>
           </div>
         </div>
       )}

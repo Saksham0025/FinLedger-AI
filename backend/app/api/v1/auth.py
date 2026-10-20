@@ -1,7 +1,9 @@
 """Authentication & Role-Based Access Control API Endpoints."""
 
+from datetime import datetime, timedelta, timezone
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -14,6 +16,7 @@ from app.api.deps import (
 )
 from app.core.config import settings
 from app.core.security import create_access_token
+from app.models.audit import AuditLog
 from app.models.user import User
 from app.schemas.auth import (
     LoginRequest,
@@ -25,6 +28,21 @@ from app.services.auth_service import AuthService
 from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/auth", tags=["Authentication & Access Control"])
+
+LOGIN_MAX_FAILURES = 5
+LOGIN_LOCKOUT_WINDOW = timedelta(minutes=15)
+
+
+def _recent_login_failures(db: Session, identifier: str) -> int:
+    """Count failed logins for an identifier inside the lockout window (from the append-only audit trail)."""
+    since = datetime.now(timezone.utc) - LOGIN_LOCKOUT_WINDOW
+    return db.scalar(
+        select(func.count(AuditLog.id)).where(
+            AuditLog.action == "AUTH_LOGIN_FAILURE",
+            AuditLog.entity_id == identifier[:50],
+            AuditLog.created_at >= since,
+        )
+    ) or 0
 
 
 @router.post(
@@ -77,6 +95,12 @@ def login(
     """Authenticate with username or email + password, returning a signed 60-minute JWT."""
     client_ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
+
+    if _recent_login_failures(db, data.username_or_email) >= LOGIN_MAX_FAILURES:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed sign-in attempts. Try again in 15 minutes.",
+        )
 
     user = AuthService.authenticate_user(db, data.username_or_email, data.password)
     if not user:

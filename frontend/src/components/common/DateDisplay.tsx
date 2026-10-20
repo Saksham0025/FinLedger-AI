@@ -8,7 +8,7 @@ interface DateDisplayProps {
 
 export const DateDisplay: React.FC<DateDisplayProps> = ({ date, className = '' }) => {
   return (
-    <span className={`text-ink-500 [.theme-forensic_&]:text-slate-400 font-mono text-xs tabular-nums ${className}`}>
+    <span className={`text-ink-500 [.theme-forensic_&]:text-slate-400 text-xs tabular-nums whitespace-nowrap ${className}`}>
       {formatDate(date)}
     </span>
   );
