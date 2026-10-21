@@ -1,5 +1,9 @@
 # FinLedger-AI: Auditable Financial Ledger & AI Fraud Detection System
 
+
+https://github.com/user-attachments/assets/994a8c16-3104-4a04-97f8-3a87cbeea3fa
+
+
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
