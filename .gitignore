@@ -64,3 +64,10 @@ pgdata/
 # Machine Learning generated datasets & binary artifacts
 backend/ml/data/*.csv
 backend/ml/artifacts/*.joblib
+
+
+#project review docs and brag
+review_documents/
+
+#bragoutput
+brag-output/
