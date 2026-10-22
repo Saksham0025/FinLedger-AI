@@ -16,6 +16,8 @@ import {
   FlaskConical,
   Activity,
   LifeBuoy,
+  BookOpen,
+  Landmark,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -30,7 +32,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isStaffSectio
   const customerNav = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Accounts & statements', path: '/accounts', icon: Wallet },
+    { name: 'Passbook', path: '/passbook', icon: BookOpen },
     { name: 'Transfers', path: '/transfers', icon: ArrowRightLeft },
+    { name: 'Other banks', path: '/interbank', icon: Landmark },
     { name: 'Investment products', path: '/products', icon: Sparkles },
     { name: 'Portfolio', path: '/portfolio', icon: PieChart },
     { name: 'Disputes', path: '/disputes', icon: LifeBuoy },
@@ -44,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isStaffSectio
     { name: 'Disputes', path: '/staff/disputes', icon: LifeBuoy },
     { name: 'Model health', path: '/staff/ai-health', icon: Activity },
     { name: 'Accounts', path: '/staff/accounts', icon: Users },
+    { name: 'Banks & clearing', path: '/staff/banks', icon: Landmark },
     { name: 'Audit trail', path: '/staff/audit', icon: FileText },
     { name: 'Reconciliation', path: '/staff/reconciliation', icon: Scale },
     { name: 'Reports', path: '/staff/reports', icon: BarChart3 },
@@ -63,7 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isStaffSectio
       )}
 
       <aside
-        className={`fixed md:sticky top-14 z-40 h-[calc(100vh-3.5rem)] w-60 shrink-0 p-3 flex flex-col justify-between transition-transform duration-200 md:translate-x-0 ${
+        className={`print:hidden fixed md:sticky top-14 z-40 h-[calc(100vh-3.5rem)] w-60 shrink-0 p-3 flex flex-col justify-between transition-transform duration-200 md:translate-x-0 ${
           isStaffSection
             ? 'bg-forensic-900 border-r border-forensic-700 text-slate-100'
             : 'bg-paper-50 border-r border-eucalyptus-300 text-ink-900 shadow-atelier'

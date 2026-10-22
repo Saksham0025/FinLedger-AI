@@ -37,10 +37,12 @@ export const accountsApi = {
   },
 
   createAccount: async (
-    accountType: 'SAVINGS' | 'CURRENT' = 'SAVINGS'
+    accountType: 'SAVINGS' | 'CURRENT' = 'SAVINGS',
+    bankId?: string
   ): Promise<Account> => {
     const res = await apiClient.post<Account>('/api/v1/accounts', {
       account_type: accountType,
+      bank_id: bankId || null,
     });
     return res.data;
   },

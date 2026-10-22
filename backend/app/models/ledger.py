@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 from datetime import datetime
 from typing import TYPE_CHECKING, List
-from sqlalchemy import String, Numeric, SmallInteger, DateTime, ForeignKey, CheckConstraint, Index, func
+from sqlalchemy import BigInteger, Identity, String, Numeric, SmallInteger, DateTime, ForeignKey, CheckConstraint, Index, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
@@ -55,7 +55,8 @@ class LedgerTransaction(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "transaction_type IN ('CUSTOMER_TRANSFER', 'INITIAL_DEPOSIT', 'CORRECTION_REVERSAL', 'INVESTMENT_PURCHASE')",
+            "transaction_type IN ('CUSTOMER_TRANSFER', 'INITIAL_DEPOSIT', 'CORRECTION_REVERSAL', 'INVESTMENT_PURCHASE', "
+            "'INTERBANK_OUTWARD', 'INTERBANK_SETTLEMENT', 'INTERBANK_RETURN')",
             name="chk_ledger_txn_type_valid",
         ),
     )
@@ -93,6 +94,14 @@ class LedgerEntry(Base):
     sequence_num: Mapped[int] = mapped_column(
         SmallInteger,
         nullable=False,
+    )
+    # Global insertion order: the passbook serial number. now() is per-transaction,
+    # so timestamps alone cannot order legs posted within one database transaction.
+    posting_seq: Mapped[int] = mapped_column(
+        BigInteger,
+        Identity(always=True),
+        nullable=False,
+        unique=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

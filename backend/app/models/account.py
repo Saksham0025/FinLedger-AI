@@ -1,13 +1,15 @@
 import uuid
 from decimal import Decimal
 from typing import TYPE_CHECKING, List
-from sqlalchemy import String, Numeric, Integer, ForeignKey, CheckConstraint
+from sqlalchemy import String, Numeric, Integer, ForeignKey, CheckConstraint, Index, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin
+from app.models.bank import HOME_BANK_ID
 
 if TYPE_CHECKING:
+    from app.models.bank import Bank
     from app.models.customer import Customer
     from app.models.ledger import LedgerEntry
     from app.models.transfer import TransferRequest
@@ -27,6 +29,14 @@ class Account(Base, TimestampMixin):
         UUID(as_uuid=True),
         ForeignKey("customers.id", ondelete="RESTRICT"),
         nullable=True,  # Nullable for internal system clearing accounts
+        index=True,
+    )
+    bank_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("banks.id", ondelete="RESTRICT"),
+        nullable=False,
+        default=HOME_BANK_ID,
+        server_default=text(f"'{HOME_BANK_ID}'::uuid"),
         index=True,
     )
     account_number: Mapped[str] = mapped_column(
@@ -61,6 +71,7 @@ class Account(Base, TimestampMixin):
     )
 
     # Relationships
+    bank: Mapped["Bank"] = relationship("Bank")
     customer: Mapped["Customer"] = relationship(
         "Customer",
         back_populates="accounts",
@@ -82,7 +93,7 @@ class Account(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint(
-            "account_type IN ('SAVINGS', 'CURRENT', 'INTERNAL_CLEARING', 'INVESTMENT')",
+            "account_type IN ('SAVINGS', 'CURRENT', 'INTERNAL_CLEARING', 'INVESTMENT', 'SETTLEMENT')",
             name="chk_accounts_type_valid",
         ),
         CheckConstraint(
@@ -97,4 +108,19 @@ class Account(Base, TimestampMixin):
             "account_type = 'INTERNAL_CLEARING' OR cached_balance >= 0.00",
             name="chk_accounts_non_negative_balance",
         ),
+        # One central-bank settlement account per bank
+        Index(
+            "uq_accounts_one_settlement_per_bank",
+            "bank_id",
+            unique=True,
+            postgresql_where=text("account_type = 'SETTLEMENT'"),
+        ),
     )
+
+    @property
+    def ifsc(self) -> str:
+        return self.bank.ifsc
+
+    @property
+    def bank_code(self) -> str:
+        return self.bank.code

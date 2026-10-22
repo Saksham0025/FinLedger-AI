@@ -12,6 +12,8 @@ from app.api.v1.reports import router as reports_router
 from app.api.v1.graph import router as graph_router
 from app.api.v1.disputes import router as disputes_router
 from app.api.v1.fraud_lab import router as fraud_lab_router
+from app.api.v1.interbank import router as interbank_router
+from app.api.v1.statements import router as statements_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -25,3 +27,5 @@ api_router.include_router(reports_router)
 api_router.include_router(graph_router)
 api_router.include_router(disputes_router)
 api_router.include_router(fraud_lab_router)
+api_router.include_router(interbank_router)
+api_router.include_router(statements_router)

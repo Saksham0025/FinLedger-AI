@@ -1,4 +1,5 @@
 from app.models.base import Base, TimestampMixin
+from app.models.bank import Bank
 from app.models.user import User
 from app.models.customer import Customer
 from app.models.account import Account
@@ -12,10 +13,12 @@ from app.models.notes import InvestigationNote
 from app.models.dispute import Dispute, CaseEvent
 from app.models.graph import GraphFinding
 from app.models.simulation import SimulationRun
+from app.models.interbank import InterbankTransfer
 
 __all__ = [
     "Base",
     "TimestampMixin",
+    "Bank",
     "User",
     "Customer",
     "Account",
@@ -33,4 +36,5 @@ __all__ = [
     "CaseEvent",
     "GraphFinding",
     "SimulationRun",
+    "InterbankTransfer",
 ]

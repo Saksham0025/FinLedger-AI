@@ -13,6 +13,9 @@ class AccountResponse(BaseModel):
 
     id: uuid.UUID
     customer_id: uuid.UUID | None = None
+    bank_id: uuid.UUID
+    bank_code: str
+    ifsc: str
     account_number: str
     account_type: str
     currency: str = "INR"
@@ -48,3 +51,4 @@ class AccountCreateRequest(BaseModel):
         pattern=r"^(SAVINGS|CURRENT)$",
         description="Account type to provision (SAVINGS or CURRENT)",
     )
+    bank_id: uuid.UUID | None = Field(default=None, description="Bank to open the account at (default: home bank)")

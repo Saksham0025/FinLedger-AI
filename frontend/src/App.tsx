@@ -16,6 +16,8 @@ import { TransfersPage } from './pages/customer/TransfersPage';
 import { ProductsPage } from './pages/customer/ProductsPage';
 import { PortfolioPage } from './pages/customer/PortfolioPage';
 import { DisputesPage } from './pages/customer/DisputesPage';
+import { PassbookPage } from './pages/customer/PassbookPage';
+import { InterbankPage } from './pages/customer/InterbankPage';
 
 // Staff Pages
 import { StaffDashboard } from './pages/staff/StaffDashboard';
@@ -28,6 +30,7 @@ import { AuditLogsPage } from './pages/staff/AuditLogsPage';
 import { ReconciliationPage } from './pages/staff/ReconciliationPage';
 import { ReportsAnalyticsPage } from './pages/staff/ReportsAnalyticsPage';
 import { StaffDisputesPage } from './pages/staff/StaffDisputesPage';
+import { BanksLedgerPage } from './pages/staff/BanksLedgerPage';
 
 const RootRedirect: React.FC = () => {
   const { isAuthenticated, isStaff, isLoading } = useAuth();
@@ -82,6 +85,22 @@ export const App: React.FC = () => {
               element={
                 <ProtectedRoute requiredRole="CUSTOMER">
                   <TransfersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/passbook"
+              element={
+                <ProtectedRoute requiredRole="CUSTOMER">
+                  <PassbookPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/interbank"
+              element={
+                <ProtectedRoute requiredRole="CUSTOMER">
+                  <InterbankPage />
                 </ProtectedRoute>
               }
             />
@@ -165,6 +184,14 @@ export const App: React.FC = () => {
               element={
                 <ProtectedRoute requiredRole="STAFF">
                   <AuditLogsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/staff/banks"
+              element={
+                <ProtectedRoute requiredRole="STAFF">
+                  <BanksLedgerPage />
                 </ProtectedRoute>
               }
             />

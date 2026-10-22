@@ -80,7 +80,7 @@ class PayeeGuardService:
         if source_acc.status != "ACTIVE":
             raise PayeeGuardError(f"Source account is currently {source_acc.status}", status_code=400)
 
-        if source_acc.account_type == "INTERNAL_CLEARING":
+        if source_acc.account_type in ("INTERNAL_CLEARING", "SETTLEMENT"):
             raise PayeeGuardError("Transfers from internal clearing accounts are prohibited", status_code=400)
 
         if source_acc.cached_balance < amount:
@@ -103,7 +103,7 @@ class PayeeGuardService:
                 status_code=400,
             )
 
-        if dest_acc.account_type == "INTERNAL_CLEARING":
+        if dest_acc.account_type in ("INTERNAL_CLEARING", "SETTLEMENT"):
             raise PayeeGuardError(
                 "Direct transfers to internal clearing accounts are prohibited",
                 status_code=400,

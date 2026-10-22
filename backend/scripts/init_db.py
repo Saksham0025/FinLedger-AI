@@ -66,6 +66,36 @@ def seed_clearing_account_for_engine(engine_instance, db_label="Main"):
         else:
             print(f"[{db_label}] Internal clearing account '{settings.CLEARING_ACCOUNT_NUMBER}' already exists.")
 
+    seed_settlement_accounts_for_engine(engine_instance, db_label)
+
+
+def seed_settlement_accounts_for_engine(engine_instance, db_label="Main"):
+    """Ensure every bank has its central-bank settlement account (INR-SET-<code>)."""
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+    from app.models.account import Account
+    from app.models.bank import Bank
+
+    with Session(engine_instance) as session:
+        have = set(session.scalars(select(Account.bank_id).where(Account.account_type == "SETTLEMENT")))
+        for bank in session.scalars(select(Bank).order_by(Bank.code)):
+            if bank.id in have:
+                continue
+            print(f"[{db_label}] Seeding settlement account: {bank.settlement_account_number}...")
+            session.add(
+                Account(
+                    bank_id=bank.id,
+                    customer_id=None,
+                    account_number=bank.settlement_account_number,
+                    account_type="SETTLEMENT",
+                    currency=settings.DEFAULT_CURRENCY,
+                    cached_balance=Decimal("0.00"),
+                    status="ACTIVE",
+                    version=1,
+                )
+            )
+        session.commit()
+
 
 def seed_system_clearing_account():
     """Seed clearing accounts in both development and test databases."""

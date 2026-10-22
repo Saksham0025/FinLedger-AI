@@ -161,7 +161,7 @@ class LedgerService:
                     )
                 )
 
-            if acc.account_type == "INTERNAL_CLEARING":
+            if acc.account_type in ("INTERNAL_CLEARING", "SETTLEMENT"):
                 total_clearing += cached
             else:
                 total_customer_liabilities += cached

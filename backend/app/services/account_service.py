@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.account import Account
+from app.models.bank import Bank, HOME_BANK_ID
 from app.models.ledger import LedgerEntry
 from app.services.ledger_service import LedgerService
 from app.services.audit_service import AuditService
@@ -24,6 +25,7 @@ class AccountService:
         db: Session,
         customer_id: uuid.UUID,
         account_type: str = "SAVINGS",
+        bank_id: uuid.UUID = HOME_BANK_ID,
     ) -> Account:
         """Provision a new customer account with zero initial cached balance.
 
@@ -32,10 +34,13 @@ class AccountService:
         """
         if account_type not in ("SAVINGS", "CURRENT"):
             raise ValueError(f"Invalid account type '{account_type}' for customer provisioning")
+        if db.get(Bank, bank_id) is None:
+            raise ValueError("Unknown bank")
 
         prefix = "SAV" if account_type == "SAVINGS" else "CUR"
         account_number = f"INR-{prefix}-{uuid.uuid4().hex[:8].upper()}"
         account = Account(
+            bank_id=bank_id,
             customer_id=customer_id,
             account_number=account_number,
             account_type=account_type,
@@ -151,6 +156,8 @@ class AccountService:
 
         if target_acc.status != "ACTIVE":
             raise ValueError(f"Target account status is {target_acc.status}, deposit rejected")
+        if target_acc.account_type in ("INTERNAL_CLEARING", "SETTLEMENT"):
+            raise ValueError("Deposits into internal clearing or settlement accounts are prohibited")
 
         # Prepare balanced double-entry legs
         # Customer account (Liability): CREDIT increases balance

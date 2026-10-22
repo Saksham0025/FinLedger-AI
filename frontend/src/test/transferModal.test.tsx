@@ -12,6 +12,9 @@ const mockAccounts: Account[] = [
   {
     id: '11111111-1111-1111-1111-111111111111',
     customer_id: 'cust-1',
+    bank_id: 'bank-1',
+    bank_code: 'FLAI',
+    ifsc: 'FLAI0000001',
     account_number: 'INR-SAV-123456',
     account_type: 'SAVINGS',
     currency: 'INR',

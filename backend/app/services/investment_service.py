@@ -241,7 +241,7 @@ class InvestmentService:
                 raise AccountEligibilityError(
                     f"Source account status is '{source_acc.status}', debits not permitted"
                 )
-            if source_acc.account_type in ("INTERNAL_CLEARING", "INVESTMENT"):
+            if source_acc.account_type in ("INTERNAL_CLEARING", "INVESTMENT", "SETTLEMENT"):
                 raise AccountEligibilityError(
                     f"Cannot purchase investments using account type '{source_acc.account_type}'"
                 )

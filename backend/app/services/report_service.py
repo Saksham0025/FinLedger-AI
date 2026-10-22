@@ -196,7 +196,7 @@ class ReportService:
         cust_liabilities = Decimal("0.00")
 
         for acc in accounts:
-            if acc.account_type == "INTERNAL_CLEARING":
+            if acc.account_type in ("INTERNAL_CLEARING", "SETTLEMENT"):
                 clearing_bal += acc.cached_balance
             else:
                 cust_liabilities += acc.cached_balance

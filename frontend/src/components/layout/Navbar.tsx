@@ -16,7 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, isStaffSection 
 
   return (
     <header
-      className={`sticky top-0 z-30 w-full transition-colors ${
+      className={`print:hidden sticky top-0 z-30 w-full transition-colors ${
         isStaffSection
           ? 'bg-forensic-900 border-b border-forensic-700 text-slate-100'
           : 'bg-paper-50 border-b border-eucalyptus-300 text-ink-900 shadow-xs'

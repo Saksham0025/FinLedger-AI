@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app.api.deps import get_db, get_current_user, require_customer
 from app.models.user import User
 from app.models.account import Account
+from app.models.bank import HOME_BANK_ID
 from app.schemas.account import AccountResponse, DepositRequest, AccountCreateRequest
 from app.schemas.ledger import LedgerEntryResponse
 from app.services.account_service import AccountService
@@ -42,6 +43,7 @@ def create_account(
             db=db,
             customer_id=current_user.customer.id,
             account_type=data.account_type,
+            bank_id=data.bank_id or HOME_BANK_ID,
         )
         db.commit()
         db.refresh(new_account)

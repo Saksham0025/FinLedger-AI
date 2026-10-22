@@ -8,8 +8,9 @@ import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
 import { EmptyState } from '../../components/common/EmptyState';
 import { PageHeader } from '../../components/common/PageHeader';
 import { DepositModal } from '../../components/customer/DepositModal';
-import { Account, LedgerEntry } from '../../types/api';
+import { Account, Bank, LedgerEntry } from '../../types/api';
 import { accountsApi } from '../../api/accounts';
+import { interbankApi } from '../../api/interbank';
 import { getErrorMessage } from '../../api/client';
 import { Wallet, ArrowDownCircle, RefreshCw, ChevronLeft, ChevronRight, Scale, Plus } from 'lucide-react';
 
@@ -28,6 +29,9 @@ export const AccountsPage: React.FC = () => {
 
   const [depositModalOpen, setDepositModalOpen] = useState(false);
   const [depositAccount, setDepositAccount] = useState<Account | null>(null);
+
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [openAtBankId, setOpenAtBankId] = useState('');
 
   const fetchAccounts = async () => {
     setIsLoadingAccounts(true);
@@ -49,7 +53,7 @@ export const AccountsPage: React.FC = () => {
     setIsCreatingAccount(true);
     setError(null);
     try {
-      const newAcc = await accountsApi.createAccount(accountType);
+      const newAcc = await accountsApi.createAccount(accountType, openAtBankId);
       await fetchAccounts();
       setSelectedAccountId(newAcc.id);
     } catch (err: unknown) {
@@ -75,7 +79,27 @@ export const AccountsPage: React.FC = () => {
 
   useEffect(() => {
     fetchAccounts();
+    interbankApi
+      .listBanks()
+      .then(setBanks)
+      .catch(() => setBanks([]));
   }, []);
+
+  const bankPicker = banks.length > 0 && (
+    <select
+      aria-label="Bank to open the account at"
+      className="border border-eucalyptus-300 rounded px-2 py-1.5 text-xs bg-surface text-ink-900"
+      value={openAtBankId}
+      onChange={(e) => setOpenAtBankId(e.target.value)}
+    >
+      <option value="">Home bank (FinLedger Bank)</option>
+      {banks.map((b) => (
+        <option key={b.id} value={b.id}>
+          {b.name} · {b.ifsc}
+        </option>
+      ))}
+    </select>
+  );
 
   useEffect(() => {
     if (selectedAccountId) {
@@ -115,15 +139,27 @@ export const AccountsPage: React.FC = () => {
               </Button>
             )}
             {accounts.length > 0 && (
-              <Button
-                variant="primary"
-                size="sm"
-                isLoading={isCreatingAccount}
-                onClick={() => handleCreateAccount('CURRENT')}
-                leftIcon={<Plus className="w-4 h-4" />}
-              >
-                Open current account
-              </Button>
+              <>
+                {bankPicker}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  isLoading={isCreatingAccount}
+                  onClick={() => handleCreateAccount('SAVINGS')}
+                  leftIcon={<Plus className="w-4 h-4" />}
+                >
+                  Open savings account
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  isLoading={isCreatingAccount}
+                  onClick={() => handleCreateAccount('CURRENT')}
+                  leftIcon={<Plus className="w-4 h-4" />}
+                >
+                  Open current account
+                </Button>
+              </>
             )}
             <Button
               variant="ghost"
@@ -150,15 +186,18 @@ export const AccountsPage: React.FC = () => {
           title="You don't have an account yet"
           description="Open a savings account to get started. You can add an opening deposit straight after."
           action={
-            <Button
-              variant="primary"
-              size="md"
-              isLoading={isCreatingAccount}
-              onClick={() => handleCreateAccount('SAVINGS')}
-              leftIcon={<Plus className="w-4 h-4" />}
-            >
-              Open savings account
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap justify-center">
+              {bankPicker}
+              <Button
+                variant="primary"
+                size="md"
+                isLoading={isCreatingAccount}
+                onClick={() => handleCreateAccount('SAVINGS')}
+                leftIcon={<Plus className="w-4 h-4" />}
+              >
+                Open savings account
+              </Button>
+            </div>
           }
         />
       ) : (
@@ -189,6 +228,9 @@ export const AccountsPage: React.FC = () => {
                       {acc.account_type === 'SAVINGS' ? 'Savings' : acc.account_type === 'CURRENT' ? 'Current' : acc.account_type}
                       {acc.status !== 'ACTIVE' && `, ${acc.status.toLowerCase()}`}
                     </span>
+                  </span>
+                  <span className={`text-xs font-mono ${isSelected ? 'text-sage-100' : 'text-ink-500'}`}>
+                    {acc.bank_code} · IFSC {acc.ifsc}
                   </span>
                   <span>
                     <span className={`block text-xs ${isSelected ? 'text-sage-100' : 'text-ink-500'}`}>Balance</span>

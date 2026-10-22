@@ -34,8 +34,11 @@ export interface TokenResponse {
 export interface Account {
   id: string;
   customer_id: string | null;
+  bank_id: string;
+  bank_code: string;
+  ifsc: string;
   account_number: string;
-  account_type: 'SAVINGS' | 'CURRENT' | 'INTERNAL_CLEARING' | 'INVESTMENT';
+  account_type: 'SAVINGS' | 'CURRENT' | 'INTERNAL_CLEARING' | 'INVESTMENT' | 'SETTLEMENT';
   currency: 'INR';
   cached_balance: string | number; // Decimal string from backend
   status: 'ACTIVE' | 'FROZEN' | 'CLOSED';
@@ -536,3 +539,125 @@ export interface AIHealthResponse {
   known_limitations: string[];
 }
 
+
+// ---------- Banks, inter-bank payments, passbooks ----------
+
+export interface Bank {
+  id: string;
+  code: string;
+  name: string;
+  ifsc: string;
+}
+
+export type PaymentRail = 'NEFT' | 'RTGS' | 'IMPS';
+export type InterbankStatus = 'PENDING_SETTLEMENT' | 'SETTLED' | 'RETURNED' | 'FAILED';
+
+export interface InterbankTransfer {
+  id: string;
+  utr: string;
+  rail: PaymentRail;
+  status: InterbankStatus;
+  remitter_account_id: string;
+  remitter_bank_id: string;
+  beneficiary_bank_id: string | null;
+  beneficiary_ifsc: string;
+  beneficiary_account_number: string;
+  beneficiary_name: string;
+  amount: string;
+  memo: string | null;
+  failure_reason: string | null;
+  batch_id: string | null;
+  created_at: string;
+  settled_at: string | null;
+}
+
+export interface BeneficiaryLookup {
+  bank_name: string;
+  ifsc: string;
+  account_found: boolean;
+  masked_name: string | null;
+  reason: string | null;
+}
+
+export interface NeftBatchResult {
+  batch_id: string;
+  processed: number;
+  settled_count: number;
+  settled_amount: string;
+  returned_count: number;
+  returned_amount: string;
+}
+
+export interface PassbookEntry {
+  entry_id: string;
+  serial: number;
+  transaction_id: string;
+  posted_at: string;
+  transaction_type: string;
+  narration: string;
+  debit: string | null;
+  credit: string | null;
+  balance: string;
+}
+
+export interface AccountPassbook {
+  account_id: string;
+  account_number: string;
+  account_type: string;
+  bank_code: string;
+  bank_name: string;
+  ifsc: string;
+  holder_name: string | null;
+  date_from: string | null;
+  date_to: string | null;
+  opening_balance: string;
+  total_debits: string;
+  total_credits: string;
+  closing_balance: string;
+  truncated: boolean;
+  entries: PassbookEntry[];
+}
+
+export interface CustomerPassbook {
+  customer_id: string;
+  full_name: string;
+  total_closing_balance: string;
+  accounts: AccountPassbook[];
+}
+
+export interface BankBalanceSheet {
+  bank_id: string;
+  code: string;
+  name: string;
+  ifsc: string;
+  customer_count: number;
+  account_count: number;
+  customer_deposits: string;
+  investment_holdings: string;
+  settlement_in_flight: string;
+  posting_count: number;
+  total_debits: string;
+  total_credits: string;
+  interbank_outward_settled: string;
+  interbank_inward_settled: string;
+  net_interbank_position: string;
+}
+
+export interface BankCustomerRow {
+  customer_id: string;
+  full_name: string;
+  account_count: number;
+  balance: string;
+}
+
+export interface BankDayBookEntry {
+  entry_id: string;
+  posted_at: string;
+  account_number: string;
+  account_type: string;
+  holder_name: string | null;
+  transaction_type: string;
+  narration: string;
+  debit: string | null;
+  credit: string | null;
+}

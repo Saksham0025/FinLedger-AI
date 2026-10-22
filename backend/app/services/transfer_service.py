@@ -62,6 +62,8 @@ def lock_accounts_canonically(db: Session, *account_ids: uuid.UUID) -> dict[uuid
         .where(Account.id.in_(sorted(set(account_ids))))
         .order_by(Account.id.asc())
         .with_for_update()
+        # Rows already in the identity map must be refreshed, or the lock guards stale balances
+        .execution_options(populate_existing=True)
     )
     return {acc.id: acc for acc in db.scalars(lock_stmt).all()}
 
@@ -167,9 +169,9 @@ class TransferService:
                 # Account type check: clearing and investment holding accounts only move through
                 # their dedicated deposit / investment endpoints.
                 account_types = {source_acc.account_type, dest_acc.account_type}
-                if "INTERNAL_CLEARING" in account_types:
+                if account_types & {"INTERNAL_CLEARING", "SETTLEMENT"}:
                     raise AccountEligibilityError(
-                        "Transfers involving internal clearing accounts must use system deposit endpoints"
+                        "Transfers involving internal clearing or settlement accounts must use system endpoints"
                     )
                 if "INVESTMENT" in account_types:
                     raise AccountEligibilityError(
